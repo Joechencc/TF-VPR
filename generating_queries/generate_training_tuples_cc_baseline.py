@@ -87,10 +87,10 @@ for folder in folders:
     df_locations = torch.tensor(df_locations, dtype = torch.float).cpu()
 
     #2038 Training 10 testing
-    test_index = random.choices(range(len(df_locations)), k=10)
+    test_index = random.sample(range(len(df_locations)), k=10)
     train_index = list(range(df_locations.shape[0]))
     for i in test_index:
-        train_index.pop(i)
+        train_index.remove(i)
     
     df_locations_tr_x.extend(list(df_locations[train_index,0]))
     df_locations_tr_y.extend(list(df_locations[train_index,1]))
