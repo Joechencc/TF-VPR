@@ -50,7 +50,7 @@ def generate():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     base_path = cfg.DATASET_FOLDER
 
-    runs_folder = "dm_data"
+    runs_folder = "dm_data/data_supervised"
     filename = "gt_pose.mat"
     pointcloud_fols = "/pointcloud_20m_10overlap/"
 

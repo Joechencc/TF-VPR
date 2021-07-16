@@ -3,7 +3,8 @@ import pickle5 as pickle
 import numpy as np
 import random
 import config as cfg
-from open3d import read_point_cloud
+#from open3d import read_point_cloud
+import open3d as o3d
 
 def get_queries_dict(filename):
     # key:{'query':file,'positives':[files],'negatives:[files], 'neighbors':[keys]}
@@ -26,9 +27,9 @@ def load_pc_file(filename,full_path=False):
     # returns Nx3 matrix
     #print("filename:"+str(filename))
     if full_path:
-        pc = read_point_cloud(os.path.join(filename))
+        pc = o3d.read_point_cloud(os.path.join(filename))
     else:
-        pc = read_point_cloud(os.path.join("/mnt/ab0fe826-9b3c-455c-bb72-5999d52034e0/deepmapping/benchmark_datasets/", filename))
+        pc = o3d.read_point_cloud(os.path.join("/mnt/ab0fe826-9b3c-455c-bb72-5999d52034e0/deepmapping/benchmark_datasets/", filename))
     pc = np.asarray(pc.points, dtype=np.float32)
     
     if(pc.shape[0] != 256):
