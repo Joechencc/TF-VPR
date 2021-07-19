@@ -108,9 +108,6 @@ cfg.DATASET_FOLDER = FLAGS.dataset_folder
 # Load dictionary of training queries
 TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
 TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
-TRAINING_QUERIES_init = get_queries_dict(cfg.TRAIN_FILE)
-TEST_QUERIES_init = get_queries_dict(cfg.TEST_FILE)
-
 
 cfg.BN_INIT_DECAY = 0.5
 cfg.BN_DECAY_DECAY_RATE = 0.5
@@ -197,15 +194,8 @@ def train():
 
     for epoch in range(starting_epoch, cfg.MAX_EPOCH):
         print(epoch)
-        generate_dataset.generate()
         
         # Load dictionary of training queries
-        assert(TRAINING_QUERIES == TRAINING_QUERIES_init)
-
-        TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
-        TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
-
-        assert(TRAINING_QUERIES != TRAINING_QUERIES_init)
 
         print()
         log_string('**** EPOCH %03d ****' % (epoch))
@@ -436,7 +426,7 @@ def get_latent_vectors(model, dict_to_process):
     # handle edge case
     for q_index in range((len(train_file_idxs) // batch_num * batch_num), len(dict_to_process.keys())):
         index = train_file_idxs[q_index]
-        queries = load_pc_files([dict_to_process[index]["query"]])
+        queries = load_pc_files([dict_to_process[index]["query"]],True)
         queries = np.expand_dims(queries, axis=1)
 
         # if (BATCH_NUM_QUERIES - 1 > 0):
