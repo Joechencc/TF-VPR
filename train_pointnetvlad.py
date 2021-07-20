@@ -21,6 +21,8 @@ from tensorboardX import SummaryWriter
 from torch.autograd import Variable
 from torch.backends import cudnn
 
+import generating_queries.generate_training_tuples_cc_baseline as generate_data
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
@@ -106,8 +108,10 @@ print("cfg.RESULTS_FOLDER:"+str(cfg.RESULTS_FOLDER))
 cfg.DATASET_FOLDER = FLAGS.dataset_folder
 
 # Load dictionary of training queries
-TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
-TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
+#TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
+#TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
+
+TRAINING_QUERIES, TEST_QUERIES = generate_data.generate()
 
 cfg.BN_INIT_DECAY = 0.5
 cfg.BN_DECAY_DECAY_RATE = 0.5
@@ -226,8 +230,6 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
     train_file_idxs = np.arange(0, len(TRAINING_QUERIES.keys()))
     np.random.shuffle(train_file_idxs)
     for i in range(len(train_file_idxs)//cfg.BATCH_NUM_QUERIES):
-    #for i in range(2):
-        # for i in range (5):
         batch_keys = train_file_idxs[i *
                                      cfg.BATCH_NUM_QUERIES:(i+1)*cfg.BATCH_NUM_QUERIES]
         q_tuples = []
@@ -359,7 +361,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
 
 def get_feature_representation(filename, model):
     model.eval()
-    queries = load_pc_files([filename])
+    queries = load_pc_files(filename, True)
     queries = np.expand_dims(queries, axis=1)
     # if(BATCH_NUM_QUERIES-1>0):
     #    fake_queries=np.zeros((BATCH_NUM_QUERIES-1,1,NUM_POINTS,3))
@@ -451,7 +453,6 @@ def get_latent_vectors(model, dict_to_process):
             q_output = output
 
     model.train()
-    print(q_output.shape)
     return q_output
 
 

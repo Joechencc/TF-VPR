@@ -45,6 +45,21 @@ def construct_query_dict(df_centroids, filename):
 
     print("Done ", filename)
 
+def construct_query_dict_no_store(df_centroids, filename):
+    tree = KDTree(df_centroids[['x','y']])
+    ind_nn = tree.query_radius(df_centroids[['x','y']],r=15)
+    ind_r = tree.query_radius(df_centroids[['x','y']], r=50)
+    queries = {}
+
+    for i in range(len(ind_nn)):
+        query = df_centroids.iloc[i]["file"]
+        positives = np.setdiff1d(ind_nn[i],[i]).tolist()
+        negatives = np.setdiff1d(
+            df_centroids.index.values.tolist(),ind_r[i]).tolist()
+        random.shuffle(negatives)
+        queries[i] = {"query":df_centroids.iloc[i]['file'],
+                      "positives":positives,"negatives":negatives}
+    return queries
 
 def generate():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -121,9 +136,22 @@ def generate():
 
     print("df_train:"+str(len(df_train)))
     print("df_test:"+str(len(df_test)))
-
-    construct_query_dict(df_train,"training_queries_baseline.pickle")
-    construct_query_dict(df_test,"test_queries_baseline.pickle")
+       
+    train_queries = construct_query_dict_no_store(df_train,"training_queries_baseline.pickle")
+    print("here")
+    test_queries = construct_query_dict_no_storet(df_test,"test_queries_baseline.pickle")
+    #construct_query_dict(df_train,"training_queries_baseline.pickle")
+    #construct_query_dict(df_test,"test_queries_baseline.pickle")
+    return train_queries, test_queries
 
 if __name__ == "__main__":
-    generate()
+    train_queries, test_queries = generate()
+    with open("training_queries_baseline.pickle", 'wb') as handle:
+        pickle.dump(train_queries, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    print("Done ", "training_queries_baseline.pickle")
+    
+    with open("test_queries_baseline.pickle", 'wb') as handle:
+        pickle.dump(test_queries, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    print("Done ", "test_queries_baseline.pickle")
