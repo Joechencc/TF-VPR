@@ -88,6 +88,27 @@ def jitter_point_cloud(batch_data, sigma=0.005, clip=0.05):
     jittered_data += batch_data
     return jittered_data
 
+def rotate_point_cloud_by_angle(batch_data, rotation_angle):
+    """ 
+    Cited from hxdengBerkeley, Thank you!
+    Rotate the point cloud along up direction with certain angle.
+    Input:
+    BxNx2 array, original batch of point clouds
+    Return:
+    BxNx2 array, rotated batch of point clouds
+    """
+    rotated_data = np.zeros(batch_data.shape, dtype=np.float32)
+    
+    for k in range(batch_data.shape[0]):
+        #rotation_angle = np.random.uniform() * 2 * np.pi
+        cosval = np.cos(rotation_angle)
+        sinval = np.sin(rotation_angle)
+        rotation_matrix = np.array([[cosval, sinval],
+                                    [-sinval, cosval]])
+        shape_pc = batch_data[k, ...]
+        rotated_data[k, ...] = np.dot(shape_pc, rotation_matrix)
+        #print("rotated_data::::"+str(rotated_data))
+    return rotated_data
 
 def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, hard_neg=[], other_neg=False):
         # get query tuple for dictionary entry
@@ -102,7 +123,14 @@ def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, hard_neg=[], other
         pos_files.append(QUERY_DICT[dict_value["positives"][i]]["query"])
     #positives= load_pc_files(dict_value["positives"][0:num_pos])
     positives = load_pc_files(pos_files,full_path=True)
-
+    new_positives = np.zeros((positives.shape[0]*cfg.SECTION,positives.shape[1],positives.shape[2]), dtype = positives.dtype)
+    B = positives.shape[0] 
+    for indx in range(cfg.SECTION):
+        angle = indx* 40/180 * np.pi
+        #print("rotate_point_cloud_by_angle(positives[:,:,:2], angle):"+str(rotate_point_cloud_by_angle(positives[:,:,:2], angle)))
+        new_positives[indx*B:(indx+1)*B,:,:2] = rotate_point_cloud_by_angle(positives[:,:,:2], angle)
+    
+    positives = new_positives
     neg_files = []
     neg_indices = []
     if(len(hard_neg) == 0):
@@ -145,6 +173,7 @@ def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, hard_neg=[], other
             return [query, positives, negatives, np.array([])]
 
         neg2 = load_pc_file(QUERY_DICT[possible_negs[0]]["query"],full_path=True)
+
         return [query, positives, negatives, neg2]
 
 

@@ -1,3 +1,6 @@
+import torch
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("device:"+str(device))
 import argparse
 import importlib
 import math
@@ -12,7 +15,7 @@ import config as cfg
 import evaluate
 import loss.pointnetvlad_loss as PNV_loss
 import models.PointNetVlad as PNV
-import generating_queries.generate_training_tuples_baseline as generate_dataset
+import generating_queries.generate_training_tuples_cc_baseline as generate_dataset
 
 import torch
 import torch.nn as nn
@@ -194,15 +197,17 @@ def train():
     LOG_FOUT.write("\n")
     LOG_FOUT.flush()
 
+    data_index = 0
     for epoch in range(starting_epoch, cfg.MAX_EPOCH):
         print(epoch)
         print()
-        generate_dataset.generate()
-        assert(TRAINING_QUERIES ==TRAINING_QUERIES_init)
+        #generate_dataset.generate()
+        TRAIN_FILE = 'generating_queries/train_pickle/training_queries_baseline_'+str(data_index)+'.pickle'
+        TEST_FILE = 'generating_queries/train_pickle/test_queries_baseline_'+str(data_index)+'.pickle'
+        data_index = data_index+1
         # Load dictionary of training queries
-        TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
-        TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
-        assert(TRAINING_QUERIES !=TRAINING_QUERIES_init)
+        TRAINING_QUERIES = get_queries_dict(TRAIN_FILE)
+        TEST_QUERIES = get_queries_dict(TEST_FILE)
 
         log_string('**** EPOCH %03d ****' % (epoch))
         sys.stdout.flush()
@@ -366,7 +371,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
 
 def get_feature_representation(filename, model):
     model.eval()
-    queries = load_pc_files([filename])
+    queries = load_pc_files([filename],True)
     queries = np.expand_dims(queries, axis=1)
     # if(BATCH_NUM_QUERIES-1>0):
     #    fake_queries=np.zeros((BATCH_NUM_QUERIES-1,1,NUM_POINTS,3))
@@ -433,7 +438,7 @@ def get_latent_vectors(model, dict_to_process):
     # handle edge case
     for q_index in range((len(train_file_idxs) // batch_num * batch_num), len(dict_to_process.keys())):
         index = train_file_idxs[q_index]
-        queries = load_pc_files([dict_to_process[index]["query"]])
+        queries = load_pc_files([dict_to_process[index]["query"]],True)
         queries = np.expand_dims(queries, axis=1)
 
         # if (BATCH_NUM_QUERIES - 1 > 0):
@@ -481,7 +486,7 @@ def run_model(model, queries, positives, negatives, other_neg, require_grad=True
     #print("output:"+str(output))
     output = output.view(cfg.BATCH_NUM_QUERIES, -1, cfg.FEATURE_OUTPUT_DIM)
     o1, o2, o3, o4 = torch.split(
-        output, [1, cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY, 1], dim=1)
+        output, [1, cfg.TRAIN_POSITIVES_PER_QUERY * cfg.SECTION, cfg.TRAIN_NEGATIVES_PER_QUERY, 1], dim=1)
 
     return o1, o2, o3, o4
 
