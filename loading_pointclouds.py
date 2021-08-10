@@ -22,6 +22,47 @@ def get_sets_dict(filename):
         return trajectories
 
 
+def load_log_files(filename, point_num):
+    with open(filename) as f:
+        f = f.readlines()
+    
+    pcls = []
+    gts = []
+    pcl = np.zeros((point_num, 3),dtype=np.float32)
+    gt = np.zeros((3),dtype=np.float32)
+    for line in f:
+        if line.split(" ")[0] == "FLASER":
+            if(line.split(" ")[1] == "360"):
+                angle = np.arange(360) / 180 * np.pi
+                for row in range(pcl.shape[0]):
+                    pcl[row][0] = float(line.split(" ")[2+row]) * np.cos(angle[row])
+                    pcl[row][1] = float(line.split(" ")[2+row]) * np.sin(angle[row])
+                
+                gt[0] = line.split(" ")[362]
+                gt[1] = line.split(" ")[363]
+                gt[2] = line.split(" ")[364]
+                pcls.append(pcl)
+                gts.append(gt)
+
+            elif(line.split(" ")[1] == "361"):
+                angle = np.arange(360) / 180 * np.pi
+                for row in range(pcl.shape[0]-1):
+                    pcl[row][0] = float(line.split(" ")[2+row]) * np.cos(angle[row])
+                    pcl[row][1] = float(line.split(" ")[2+row]) * np.sin(angle[row])
+
+                gt[0] = line.split(" ")[363]
+                gt[1] = line.split(" ")[364]
+                gt[2] = line.split(" ")[365]
+                pcls.append(pcl)
+                gts.append(gt)
+            else:
+                assert("fail with the point size")
+    pcls = np.asarray(pcls)
+    gts = np.asarray(gts)
+    #print("pcls:"+str(pcls.shape))
+    #print("gts:"+str(gts.shape))
+    return pcls, gts
+
 def load_pc_file(filename,full_path=False):
     # returns Nx3 matrix
     #print("filename:"+str(filename))
