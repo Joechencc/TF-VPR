@@ -60,6 +60,7 @@ def evaluate_model(model,epoch,save=False,full_pickle=False):
     else:
         DATABASE_SETS = get_sets_dict(cfg.EVAL_DATABASE_FILE)
         QUERY_SETS = get_sets_dict(cfg.EVAL_QUERY_FILE)
+    
     '''
     QUERY_SETS = []
     for i in range(4):
@@ -83,13 +84,19 @@ def evaluate_model(model,epoch,save=False,full_pickle=False):
     DATABASE_VECTORS = []
     QUERY_VECTORS = []
 
+    DATABASE_SETS_SIZE = []
     for i in range(len(DATABASE_SETS)):
-        DATABASE_VECTORS.append(get_latent_vectors(model, DATABASE_SETS[i]))
+        l_v = get_latent_vectors(model, DATABASE_SETS[i])
+        DATABASE_VECTORS.extend(l_v)
+        DATABASE_SETS_SIZE.append(len(l_v))
     
+    #print(get_latent_vectors(model, DATABASE_SETS[i]).shape)
     for j in range(len(QUERY_SETS)):
-        QUERY_VECTORS.append(get_latent_vectors(model, QUERY_SETS[j]))
-
+        QUERY_VECTORS.extend(get_latent_vectors(model, QUERY_SETS[j]))
+    #print("QUERY_SETS:"+str(np.array(QUERY_VECTORS).shape))
+    #assert(0)
     #############
+    '''
     for m in range(len(QUERY_SETS)):
         for n in range(len(QUERY_SETS)):
             if (m == n):
@@ -102,8 +109,8 @@ def evaluate_model(model,epoch,save=False,full_pickle=False):
             for x in pair_similarity:
                 similarity.append(x)
     #########
-    
-    
+    assert(0)
+    '''
     ### Save Evaluate vectors
     if full_pickle:
         pass
@@ -114,6 +121,7 @@ def evaluate_model(model,epoch,save=False,full_pickle=False):
         file_name = os.path.join(cfg.RESULTS_FOLDER, "database"+str(epoch)+".npy")
         np.save(file_name, np.array(DATABASE_VECTORS))
         print("saving for DATABASE_VECTORS to "+str(file_name))
+    '''
     ave_recall = recall / count
     # print(ave_recall)
 
@@ -135,8 +143,8 @@ def evaluate_model(model,epoch,save=False,full_pickle=False):
         output.write("\n\n")
         output.write("Average Top 1% Recall:\n")
         output.write(str(ave_one_percent_recall))
-    
-    return ave_one_percent_recall, DATABASE_VECTORS
+    '''
+    return DATABASE_VECTORS, DATABASE_SETS_SIZE
 
 
 def get_latent_vectors(model, dict_to_process):

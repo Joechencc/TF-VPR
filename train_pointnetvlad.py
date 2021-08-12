@@ -18,7 +18,7 @@ import evaluate
 import loss.pointnetvlad_loss as PNV_loss
 import models.PointNetVlad as PNV
 import models.Verification as VFC
-import generating_queries.generate_training_tuples_cc_baseline_batch as generate_dataset
+import generating_queries.generate_training_tuples_2D_baseline_batch as generate_dataset
 
 import torch
 import torch.nn as nn
@@ -79,7 +79,7 @@ parser.add_argument('--dataset_folder', default='../../dataset/',
 FLAGS = parser.parse_args()
 cfg.BATCH_NUM_QUERIES = FLAGS.batch_num_queries
 #cfg.EVAL_BATCH_SIZE = 12
-cfg.NUM_POINTS = 256
+cfg.NUM_POINTS = 360
 cfg.TRAIN_POSITIVES_PER_QUERY = FLAGS.positives_per_query
 cfg.TRAIN_NEGATIVES_PER_QUERY = FLAGS.negatives_per_query
 cfg.MAX_EPOCH = FLAGS.max_epoch
@@ -206,6 +206,7 @@ def train():
     all_folders = sorted(os.listdir(cfg.DATASET_FOLDER))
     
     folders = []
+    file_sizes = []
     # All runs are used for training (both full and partial)
     index_list = range(len(all_folders))
     for index in index_list:
@@ -214,8 +215,8 @@ def train():
     for folder in folders:
         all_files = list(sorted(os.listdir(os.path.join(cfg.DATASET_FOLDER,folder))))
         all_files.remove('gt_pose.mat')
-        all_files.remove('gt_pose.png')
-
+        file_sizes.append(len(all_files))
+    
     for epoch in range(starting_epoch, cfg.MAX_EPOCH):
         print(epoch)
         print()
@@ -223,31 +224,44 @@ def train():
         generate_dataset.generate(data_index, definite_positives=trusted_positives, inside=False)  
         TRAIN_FILE = 'generating_queries/train_pickle/training_queries_baseline_'+str(data_index)+'.pickle'
         TEST_FILE = 'generating_queries/train_pickle/test_queries_baseline_'+str(data_index)+'.pickle'
+        DB_FILE = 'generating_queries/train_pickle/db_queries_baseline_'+str(data_index)+'.pickle'
         data_index = data_index+1
         # Load dictionary of training queries
         TRAINING_QUERIES = get_queries_dict(TRAIN_FILE)
         TEST_QUERIES = get_queries_dict(TEST_FILE)
-
+        DB_QUERIES = get_queries_dict(DB_FILE)
         log_string('**** EPOCH %03d ****' % (epoch))
         sys.stdout.flush()
 
-        train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINING_QUERIES, TEST_QUERIES)
-        
+        train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINING_QUERIES, TEST_QUERIES, DB_QUERIES, file_sizes)
+
         log_string('EVALUATING...')
         cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(epoch) + '.txt'
 
         #eval_recall, db_vec = evaluate.evaluate_model(model, True) #db_vec gives the evaluate nearest neighbours, folder* 2048* positves_dim
-        _, db_vec = evaluate.evaluate_model(model, epoch, True, full_pickle=True)
-        eval_recall, _ = evaluate.evaluate_model(model, epoch, True, full_pickle=False)
+        db_vec, DATABASE_SETS_SIZE = evaluate.evaluate_model(model, epoch, True, full_pickle=True)
+        #eval_recall, _, _ = evaluate.evaluate_model(model, epoch, True, full_pickle=False)
+        #print("DATABASE_SETS_SIZE:"+str(DATABASE_SETS_SIZE))
+        #assert(0)
         if potential_positives is None:
             potential_positives = []
             potential_distributions = []
             trusted_positives = []
             db_vec = np.array(db_vec)
-            for index in range(db_vec.shape[0]):
+            for index in range(len(DATABASE_SETS_SIZE)):
                 trusted_positive = []
-                nbrs = NearestNeighbors(n_neighbors=cfg.EVAL_NEAREST, algorithm='ball_tree').fit(db_vec[index])
-                distance, indice = nbrs.kneighbors(db_vec[index])
+                if index == 0:
+                    db_range = np.arange(DATABASE_SETS_SIZE[0])
+                else:
+                    overhead = 0
+                    for i in range(index):
+                        overhead = overhead + DATABASE_SETS_SIZE[0]
+                    db_range = np.arange(DATABASE_SETS_SIZE[index])
+                    db_range = db_range + overhead
+                
+                nbrs = NearestNeighbors(n_neighbors=cfg.EVAL_NEAREST, algorithm='ball_tree').fit(db_vec[db_range])
+                
+                distance, indice = nbrs.kneighbors(db_vec[db_range])
                 #print("distance:"+str(np.exp(-distance*10)[0]))
                 #print("indice:"+str(indice[0]))
                 weight = np.exp(-distance*10).tolist()
@@ -256,13 +270,15 @@ def train():
                 potential_distributions.append(np.exp(-distance*10).tolist())
                 #print("np.array(indice)[np.argsort(weight)[::-1][0]]:"+str(np.array(indice)[np.argsort(weight[:,::-1])].shape))
                 #assert(0)
-                for index2 in range(db_vec.shape[1]):
+                for index2 in range(DATABASE_SETS_SIZE[index]):
                     pre_trusted_positive = np.array(indice[index2])[np.argsort(weight[index2])[::-1][:(cfg.INIT_TRUST)]]
                     folder_path = os.path.join(cfg.DATASET_FOLDER,folders[index])
+                    all_files = list(sorted(os.listdir(folder_path)))
+                    all_files.remove('gt_pose.mat')
                     
                     #print("pre_trusted_positive:"+str(pre_trusted_positive))
+                    #print("all_files:"+str(all_files))
                     trusted_pos = VFC.filter_trusted(folder_path, all_files, index2, pre_trusted_positive)  
-                    #print("trusted_positive:"+str(trusted_positive))
                     trusted_positive.append(trusted_pos)
 
                 trusted_positives.append(trusted_positive)
@@ -271,14 +287,23 @@ def train():
             new_potential_distributions = []
             new_trusted_positives = []
             db_vec = np.array(db_vec)
-            for index in range(db_vec.shape[0]):
+            for index in range(len(DATABASE_SETS_SIZE)):
                 new_potential_positive = []
                 new_potential_distribution = []
                 new_trusted_positive = []
-                nbrs = NearestNeighbors(n_neighbors=cfg.EVAL_NEAREST, algorithm='ball_tree').fit(db_vec[index])
-                distance, indice = nbrs.kneighbors(db_vec[index])
+                if index == 0:
+                    db_range = np.arange(DATABASE_SETS_SIZE[0])
+                else:
+                    overhead = 0
+                    for i in range(index):
+                        overhead = overhead + DATABASE_SETS_SIZE[0]
+                    db_range = np.arange(DATABASE_SETS_SIZE[index])
+                    db_range = db_range + overhead
+
+                nbrs = NearestNeighbors(n_neighbors=cfg.EVAL_NEAREST, algorithm='ball_tree').fit(db_vec[db_range])
+                distance, indice = nbrs.kneighbors(db_vec[db_range])
                 weight = np.exp(-distance*10).tolist()
-                for index2 in range(db_vec.shape[1]):
+                for index2 in range(DATABASE_SETS_SIZE[index]):
                     pos_set = potential_positives[index][index2]
                     pos_dis = potential_distributions[index][index2]
                     for count,inc in enumerate(indice[index2]):
@@ -314,12 +339,12 @@ def train():
             #print("potential_positives:"+str(potential_positives[0][1]))
             #print("potential_distributions:"+str(potential_distributions[0][1]))
         #print("trusted_positives:"+str(np.array(trusted_positives)[1][2]))
-        log_string('EVAL RECALL: %s' % str(eval_recall))
+        #log_string('EVAL RECALL: %s' % str(eval_recall))
 
-        train_writer.add_scalar("Val Recall", eval_recall, epoch)
+        #train_writer.add_scalar("Val Recall", eval_recall, epoch)
 
 
-def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINING_QUERIES, TEST_QUERIES):
+def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINING_QUERIES, TEST_QUERIES, DB_QUERIES, file_sizes):
     global HARD_NEGATIVES
     global TRAINING_LATENT_VECTORS, TOTAL_ITERATIONS
 
@@ -351,7 +376,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINI
             if (len(TRAINING_LATENT_VECTORS) == 0):
                 q_tuples.append(
                     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
-                                    TRAINING_QUERIES, hard_neg=[], other_neg=True))
+                                    TRAINING_QUERIES, DB_QUERIES, file_sizes, hard_neg=[], other_neg=True))
                 #print("q_tuples:"+str(q_tuples))
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
@@ -408,7 +433,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINI
             positives.append(q_tuples[k][1])
             negatives.append(q_tuples[k][2])
             other_neg.append(q_tuples[k][3])
-
+     
         queries = np.array(queries, dtype=np.float32)
         queries = np.expand_dims(queries, axis=1)
         other_neg = np.array(other_neg, dtype=np.float32)
@@ -568,6 +593,7 @@ def run_model(model, queries, positives, negatives, other_neg, require_grad=True
     positives_tensor = torch.from_numpy(positives).float()
     negatives_tensor = torch.from_numpy(negatives).float()
     other_neg_tensor = torch.from_numpy(other_neg).float()
+  
     feed_tensor = torch.cat(
         (queries_tensor, positives_tensor, negatives_tensor, other_neg_tensor), 1)
     feed_tensor = feed_tensor.view((-1, 1, cfg.NUM_POINTS, 3))

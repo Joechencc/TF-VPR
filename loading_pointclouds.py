@@ -23,44 +23,59 @@ def get_sets_dict(filename):
 
 
 def load_log_files(filename, point_num):
+    print("filename:"+str(filename))
     with open(filename) as f:
         f = f.readlines()
     
+    count = 0
     pcls = []
     gts = []
-    pcl = np.zeros((point_num, 3),dtype=np.float32)
-    gt = np.zeros((3),dtype=np.float32)
+    #pcl = np.zeros((point_num, 3),dtype=np.float32)
+    #gt = np.zeros((3),dtype=np.float32)
     for line in f:
         if line.split(" ")[0] == "FLASER":
             if(line.split(" ")[1] == "360"):
                 angle = np.arange(360) / 180 * np.pi
-                for row in range(pcl.shape[0]):
-                    pcl[row][0] = float(line.split(" ")[2+row]) * np.cos(angle[row])
-                    pcl[row][1] = float(line.split(" ")[2+row]) * np.sin(angle[row])
-                
-                gt[0] = line.split(" ")[362]
-                gt[1] = line.split(" ")[363]
-                gt[2] = line.split(" ")[364]
-                pcls.append(pcl)
-                gts.append(gt)
+                pcl_e = []
+                gt = []
+                for row in range(point_num):
+                    pcl_c = []
+                    pcl_c.append(float(line.split(" ")[2+row]) * np.cos(angle[row]))
+                    pcl_c.append(float(line.split(" ")[2+row]) * np.sin(angle[row]))
+                    pcl_c.append(0)
+                    pcl_e.append(pcl_c)
 
+                gt.append(line.split(" ")[362])
+                gt.append(line.split(" ")[363])
+                gt.append(line.split(" ")[364])
+                
+                pcls.append(pcl_e)
+                gts.append(gt)
+                #print("gt:"+str(gt))
+                #print("gts:"+str(gts))
             elif(line.split(" ")[1] == "361"):
                 angle = np.arange(360) / 180 * np.pi
-                for row in range(pcl.shape[0]-1):
-                    pcl[row][0] = float(line.split(" ")[2+row]) * np.cos(angle[row])
-                    pcl[row][1] = float(line.split(" ")[2+row]) * np.sin(angle[row])
+                pcl_e = []
+                gt = []
+                for row in range(point_num):
+                    pcl_c = []
+                    pcl_c.append(float(line.split(" ")[2+row]) * np.cos(angle[row]))
+                    pcl_c.append(float(line.split(" ")[2+row]) * np.sin(angle[row]))
+                    pcl_c.append(0)
+                    pcl_e.append(pcl_c)
 
-                gt[0] = line.split(" ")[363]
-                gt[1] = line.split(" ")[364]
-                gt[2] = line.split(" ")[365]
-                pcls.append(pcl)
+                gt.append(line.split(" ")[363])
+                gt.append(line.split(" ")[364])
+                gt.append(line.split(" ")[365])
+                pcls.append(pcl_e)
                 gts.append(gt)
             else:
                 assert("fail with the point size")
-    pcls = np.asarray(pcls)
-    gts = np.asarray(gts)
-    #print("pcls:"+str(pcls.shape))
-    #print("gts:"+str(gts.shape))
+            count = count + 1
+    pcls = np.asarray(pcls,dtype=np.float32)
+    gts = np.asarray(gts,dtype=np.float32)
+    print("pcls:"+str(pcls.shape))
+    print("gts:"+str(gts.shape))
     return pcls, gts
 
 def load_pc_file(filename,full_path=False):
@@ -72,7 +87,8 @@ def load_pc_file(filename,full_path=False):
         pc = read_point_cloud(os.path.join("/mnt/ab0fe826-9b3c-455c-bb72-5999d52034e0/deepmapping/benchmark_datasets/", filename))
     pc = np.asarray(pc.points, dtype=np.float32)
     
-    if(pc.shape[0] != 256):
+    #print("filename:"+str(filename))
+    if(pc.shape[0] != cfg.NUM_POINTS):
         print("Error in pointcloud shape")
         return np.array([])
 
@@ -85,7 +101,7 @@ def load_pc_files(filenames,full_path):
     for filename in filenames:
         # print(filename)
         pc = load_pc_file(filename,full_path=full_path)
-        if(pc.shape[0] != 256):
+        if(pc.shape[0] != cfg.NUM_POINTS):
             continue
         pcs.append(pc)
     pcs = np.array(pcs)
@@ -128,19 +144,37 @@ def jitter_point_cloud(batch_data, sigma=0.005, clip=0.05):
     return jittered_data
 
 
-def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, hard_neg=[], other_neg=False):
+def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, DB_QUERIES, file_sizes, hard_neg=[], other_neg=False):
         # get query tuple for dictionary entry
         # return list [query,positives,negatives]
 
     query = load_pc_file(dict_value["query"])  # Nx3
+    #print("query:"+str(dict_value["query"]))
+    
+    folder_num = int(dict_value["query"].split("/")[-2].split("_")[-1])
+    
+    count_overhead = 0
+        
+    if folder_num == 0:
+        count_overhead = 0
+    else:
+        for i in range(folder_num):
+            count_overhead = count_overhead + file_sizes[i]
+
+    #print("DB_QUERIES[count_overhead]:"+str(DB_QUERIES[count_overhead]))
 
     random.shuffle(dict_value["positives"])
     pos_files = []
+    pos_files_check = []
 
     for i in range(num_pos):
-        pos_files.append(QUERY_DICT[dict_value["positives"][i]]["query"])
+        #print("dict_value[positive][i]:"+str(dict_value["positives"][i]))
+        pos_files.append(DB_QUERIES[dict_value["positives"][i]+count_overhead]["query"])
+    
+    #print("pos_files:"+str(pos_files))
     #positives= load_pc_files(dict_value["positives"][0:num_pos])
     positives = load_pc_files(pos_files,full_path=True)
+    assert(positives.shape == (2,cfg.NUM_POINTS,3))
     '''
     B, P, _ = positives.shape
     new_positives = np.zeros((B*(cfg.ROT_NUM+1),P,3), dtype = positives.dtype)
@@ -159,25 +193,28 @@ def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, hard_neg=[], other
     if(len(hard_neg) == 0):
         random.shuffle(dict_value["negatives"])
         for i in range(num_neg):
-            neg_files.append(QUERY_DICT[dict_value["negatives"][i]]["query"])
+            neg_files.append(DB_QUERIES[dict_value["negatives"][i]+count_overhead]["query"])
+            #file_ = os.path.join(fol, '{0:04}'.format(int(dict_value["negatives"][i]))+".pcd")
+            #neg_files.append(file_)
             neg_indices.append(dict_value["negatives"][i])
 
     else:
         random.shuffle(dict_value["negatives"])
         for i in hard_neg:
-            neg_files.append(QUERY_DICT[i]["query"])
+            neg_files.append(DB_QUERIES[i+count_overhead]["query"])
             neg_indices.append(i)
         j = 0
         while(len(neg_files) < num_neg):
 
             if not dict_value["negatives"][j] in hard_neg:
                 neg_files.append(
-                    QUERY_DICT[dict_value["negatives"][j]]["query"])
+                    DB_QUERIES[dict_value["negatives"][j]+count_overhead]["query"])
                 neg_indices.append(dict_value["negatives"][j])
             j += 1
 
     negatives = load_pc_files(neg_files,full_path=True)
-
+    #print("neg_files:"+str(neg_files))
+    assert(negatives.shape == (18,cfg.NUM_POINTS,3))
     if other_neg is False:
         return [query, positives, negatives]
     # For Quadruplet Loss
@@ -187,15 +224,17 @@ def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, hard_neg=[], other
         for pos in dict_value["positives"]:
             neighbors.append(pos)
         for neg in neg_indices:
-            for pos in QUERY_DICT[neg]["positives"]:
+            for pos in DB_QUERIES[neg+count_overhead]["positives"]:
                 neighbors.append(pos)
         possible_negs = list(set(QUERY_DICT.keys())-set(neighbors))
         random.shuffle(possible_negs)
 
         if(len(possible_negs) == 0):
             return [query, positives, negatives, np.array([])]
-
-        neg2 = load_pc_file(QUERY_DICT[possible_negs[0]]["query"],full_path=True)
+        
+        neg2 = load_pc_file(DB_QUERIES[possible_negs[0]]["query"],full_path=True)
+        #print("neg2:"+str(DB_QUERIES[possible_negs[0]]["query"]))
+        #assert(0)
         return [query, positives, negatives, neg2]
 
 

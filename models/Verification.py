@@ -28,7 +28,7 @@ def folder_similar_check(folder_, all_files,df_location, top_k):
             tgt_paths.append(file_)
             pc = read_point_cloud(file_)
             pc = np.asarray(pc.points, dtype=np.float32)
-            if(pc.shape[0] != 256):
+            if(pc.shape[0] != 360):
                 print("Error in pointcloud shape")
             tgt_pc.append(pc)
         tgt_pc = np.asarray(tgt_pc, dtype=np.float32)
@@ -68,15 +68,15 @@ def rotate_point_cloud(batch_data, rotation_angle):
 def filter_trusted(folder_path, all_files, src_index, compared_index):
     pc = read_point_cloud(os.path.join(folder_path, all_files[src_index]))
     src_pc = np.asarray(pc.points, dtype=np.float32)
-    if(src_pc.shape[0] != 256):
+    if(src_pc.shape[0] != 360):
         print("Error in pointcloud shape")
     trusted_positive = []
     for c_ind in compared_index:
         pc = read_point_cloud(os.path.join(folder_path, all_files[c_ind]))
         tar_pc = np.asarray(pc.points, dtype=np.float32)
-        if(similarity_filter(src_pc, tar_pc, 0.003)):
+        if(similarity_filter(src_pc, tar_pc, 16.13)):
             trusted_positive.append(c_ind)
-    trusted_positive = np.array(trusted_positive, dtype=np.float32)
+    trusted_positive = np.array(trusted_positive, dtype=np.int32)
     return trusted_positive
 
 def similarity_filter(in_pcl, compare_pcl, threshold):
@@ -93,7 +93,7 @@ def similarity_filter(in_pcl, compare_pcl, threshold):
         converged, transf, estimate, fitness = icp.icp(src, tgt, max_iter=1)
         if fitness < min_fitness:
             min_fitness = fitness
-
+    
     if min_fitness < threshold:
         return True
     else:
@@ -112,9 +112,8 @@ def similarity_check(in_pcl, compare_pcls, top_k, df_location):
         for angle in angle_range:
             tgt = compare_pcls[i]
             tgt[:,:2] = rotate_point_cloud(tgt[:,:2], angle)
-            print("tgt:"+str(tgt))
-            print("src:"+str(in_pcl.astype(np.float32)))
-            assert(0)
+            #print("tgt:"+str(tgt))
+            #print("src:"+str(in_pcl.astype(np.float32)))
             tgt = pcl.PointCloud(tgt.astype(np.float32))
             converged, transf, estimate, fitness = icp.icp(
                             src, tgt, max_iter=1)
@@ -171,10 +170,10 @@ def similarity_check(in_pcl, compare_pcls, top_k, df_location):
 
 
 if __name__ == "__main__":
-    runs_folder = "dm_data/"
+    runs_folder = "2D_data/"
     top_k = 50
 
-    cc_dir = "/home/cc/"
+    cc_dir = "/data2/cc_data/"
     pre_dir = os.path.join(cc_dir,runs_folder)
     all_folders = sorted(os.listdir(os.path.join(cc_dir,runs_folder)))
 
@@ -184,12 +183,11 @@ if __name__ == "__main__":
     print("Number of runs: "+str(len(index_list)))
     for index in index_list:
         folders.append(all_folders[index])
-
+    
     sim_array = []
     for folder in folders:
         all_files = list(sorted(os.listdir(os.path.join(cc_dir,runs_folder,folder))))
         all_files.remove('gt_pose.mat')
-        all_files.remove('gt_pose.png')
         folder_size = len(all_files)
         data_index = list(range(folder_size))
 

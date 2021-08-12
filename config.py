@@ -1,5 +1,5 @@
 # GLOBAL
-NUM_POINTS = 256
+NUM_POINTS = 360
 FEATURE_OUTPUT_DIM = 3839
 RESULTS_FOLDER = "results/"
 OUTPUT_FILE = "results/results.txt"
@@ -7,7 +7,7 @@ OUTPUT_FILE = "results/results.txt"
 LOG_DIR = 'log/'
 MODEL_FILENAME = "model.ckpt"
 
-DATASET_FOLDER = '/home/cc/dm_data'
+DATASET_FOLDER = '/data2/cc_data//2D_data'
 
 # TRAIN
 BATCH_NUM_QUERIES = 2
