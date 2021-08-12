@@ -153,19 +153,18 @@ def generate(data_index, definite_positives=None, inside=True):
     assert(0)
     '''
     # Initialize pandas DataFrame
-    k_nearest = 10
-    k_furthest = 50
 
-    df_train = pd.DataFrame(columns=['file','positives','negatives'])
-    df_test = pd.DataFrame(columns=['file','positives','negatives'])
+    df_train = pd.DataFrame(columns=['file','x','y'])
+    df_test = pd.DataFrame(columns=['file','x','y'])
 
     df_files_test = []
     df_files_train =[]
     df_files = []
 
-    df_indices_train = []
-    df_indices_test = []
-    df_indices = []
+    df_locations_tr_x = []
+    df_locations_tr_y = []
+    df_locations_ts_x = []
+    df_locations_ts_y = []
 
     pre_dir = os.path.join(folders_, "2D_data")
     folders = sorted(os.listdir(os.path.join(folders_, "2D_data")))
@@ -177,6 +176,9 @@ def generate(data_index, definite_positives=None, inside=True):
     folder_sizes = []
 
     for folder in folders:
+        df_locations = sio.loadmat(os.path.join(
+                       pre_dir,folder,filename))
+
         all_files = list(sorted(os.listdir(os.path.join(pre_dir,folder))))
         all_files.remove('gt_pose.mat')
         
