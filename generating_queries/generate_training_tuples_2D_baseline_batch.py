@@ -47,67 +47,36 @@ def construct_query_dict(df_files, df_indice, filename):
 
     print("Done ", filename)
 
-def construct_dict(df_files, df_indices, filename, folder_sizes, all_folder_sizes, folder_num, all_folders, pre_dir, k_nearest, k_furthest, definite_positives=None):
-    pos_index_range = list(range(-k_nearest//2, (k_nearest//2)+1))
-    mid_index_range = list(range(-k_nearest, (k_nearest)+1))
-    
-    count_index = 0
-    
+def construct_dict(df_files, filename, folder_sizes, all_folder_sizes, folder_num, all_folders, pre_dir, definite_positives=None):
     queries = {}
+    print("folder_sizes:",folder_sizes)
     for num in range(folder_num):
-        folder = os.path.join(pre_dir,all_folders[num])
-        '''
-        gt_mat = os.path.join(folder, 'gt_pose.mat')
-        df_locations = sio.loadmat(gt_mat)
-        df_locations = df_locations['pose']
-        df_locations = torch.tensor(df_locations, dtype = torch.float).cpu()
-        '''
-        for index in range(folder_sizes[num]):
-            #print("num:"+str(num))
-            #print("count_index:"+str(count_index))
-            df_indice = df_indices[count_index + index]
-            positive_l = []
-            negative_l = list(range(all_folder_sizes[num]))
-            
-            for index_pos in pos_index_range:
-                if (index_pos + df_indice >= 0) and (index_pos + df_indice <= all_folder_sizes[num] -1):
-                    positive_l.append(index_pos + df_indice)
-            for index_pos in mid_index_range:
-                if (index_pos + df_indice >= 0) and (index_pos + df_indice <= all_folder_sizes[num] -1):
-                    negative_l.remove(index_pos + df_indice)
-            if definite_positives is not None:
-                positive_l.extend(definite_positives[num][df_indice])
-                negative_l = [i for i in negative_l if i not in definite_positives[num][df_indice]]
-
-            positive_l = list(set(positive_l))
-        
-
-            '''
-            negative_l_sampled = random.sample(negative_l, k=k_furthest)
-            negative_l_sampled, replace_count = check_negatives(negative_l_sampled, index, df_locations, mid_index_range)
-            while (replace_count!=0):
-                negative_l_sampled_new = random.sample(negative_l, k=replace_count)
-                negative_l_sampled_new, replace_count = check_negatives(negative_l_sampled_new, index, df_locations, mid_index_range)
-                negative_l_sampled.extend(negative_l_sampled_new)
-            
-            replace_counts = replace_counts + replace_count
-            '''
-            queries[count_index + index] = {"query":df_files[count_index + index],
-                          "positives":positive_l,"negatives":negative_l}
-            
-            '''
-            print("df_files[num * (len(df_indices)//folder_num) + index]:"+str(df_files[num * (len(df_indices)//folder_num) + index]))
-            
-            print("positive_l:"+str(positive_l))
-            print("negative_l:"+str(negative_l))
-        
-            assert(0)
-            '''
-        count_index = count_index + folder_sizes[num]
-    #print("replace_counts:"+str(replace_counts))        
-    #print("queries:"+str(queries[0]))
-    #print("queries:"+str(queries[0][0]))
-
+        #print("df_files:"+str(len(df_files)))
+        if num == 0:
+            overhead = 0
+        else:
+            overhead = 0
+            for i in range(num):
+                overhead = overhead + folder_sizes[i]
+        #q_range = np.arange(folder_sizes[num])
+        #q_range = q_range + overhead
+        #print("q_range:"+str(q_range))
+        df_centroids = df_files[overhead:overhead + folder_sizes[num]]
+        #assert(0)
+        tree = KDTree(df_centroids[['x','y']])
+        ind_nn = tree.query_radius(df_centroids[['x','y']],r=5)
+        ind_r = tree.query_radius(df_centroids[['x','y']], r=50)
+        for i in range(len(df_centroids)):
+            query = df_centroids.iloc[i]["file"]
+            positives = np.setdiff1d(ind_nn[i],[i]).tolist()
+            negatives = np.setdiff1d(
+                        df_centroids.index.values.tolist(),ind_r[i]).tolist()
+            random.shuffle(negatives)
+            queries[i+overhead] = {"query":df_centroids.iloc[i]['file'],
+                          "positives":positives,"negatives":negatives}
+            #print("query:"+str(query))
+            #print("positives:"+str(positives))
+            #print("negatives:"+str(len(negatives)))
     with open(filename, 'wb') as handle:
         pickle.dump(queries, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
@@ -119,10 +88,10 @@ def generate(data_index, definite_positives=None, inside=True):
     runs_folder = "cc_data/"
     
     folders_ = os.path.join(base_path, runs_folder)
-    
+    '''
     all_folder_360 = sorted(os.listdir(os.path.join(folders_, "360")))
     all_folder_361 = sorted(os.listdir(os.path.join(folders_, "361")))
-    '''
+    
     outfile = "/home/cc/2D_data/"
       
     out_index = 0
@@ -165,6 +134,8 @@ def generate(data_index, definite_positives=None, inside=True):
     df_locations_tr_y = []
     df_locations_ts_x = []
     df_locations_ts_y = []
+    df_locations_x = []
+    df_locations_y = []
 
     pre_dir = os.path.join(folders_, "2D_data")
     folders = sorted(os.listdir(os.path.join(folders_, "2D_data")))
@@ -174,44 +145,68 @@ def generate(data_index, definite_positives=None, inside=True):
     folder_sizes_train = []
     folder_sizes_test = []
     folder_sizes = []
+    filename = "gt_pose.mat"
 
     for folder in folders:
         df_locations = sio.loadmat(os.path.join(
                        pre_dir,folder,filename))
-
-        all_files = list(sorted(os.listdir(os.path.join(pre_dir,folder))))
-        all_files.remove('gt_pose.mat')
         
-        folder_size = len(all_files)
-        folder_sizes_train.append(folder_size-10)
-        folder_sizes_test.append(10)
-        folder_sizes.append(folder_size)
-
-        test_index = random.sample(range(folder_size), k=10)
-        train_index = list(range(folder_size))
+        df_locations = df_locations['pose']
+        df_locations = torch.tensor(df_locations, dtype = torch.float).cpu()
+        
+        #n Training 10 testing
+        file_index = list(range(df_locations.shape[0]))
+        test_index = random.sample(range(len(df_locations)), k=10)
+        train_index = list(range(df_locations.shape[0]))
         for ts_ind in test_index:
             train_index.remove(ts_ind)
         
+        folder_sizes_train.append(len(train_index))
+        folder_sizes_test.append(10)
+        folder_sizes.append(df_locations.shape[0])
+
+        df_locations_tr_x.extend(list(df_locations[train_index,0]))
+        df_locations_tr_y.extend(list(df_locations[train_index,1]))
+        df_locations_ts_x.extend(list(df_locations[test_index,0]))
+        df_locations_ts_y.extend(list(df_locations[test_index,1]))
+        df_locations_x.extend(list(df_locations[file_index,0]))
+        df_locations_y.extend(list(df_locations[file_index,1]))
+
+        all_files = list(sorted(os.listdir(os.path.join(pre_dir,folder))))
+        all_files.remove('gt_pose.mat')
+
         for (indx, file_) in enumerate(all_files): 
             if indx in test_index:
                 df_files_test.append(os.path.join(pre_dir,folder,file_))
-                df_indices_test.append(indx)
             else:
                 df_files_train.append(os.path.join(pre_dir,folder,file_))
-                df_indices_train.append(indx)
             df_files.append(os.path.join(pre_dir,folder,file_))
-            df_indices.append(indx)
-    #pre_dir = os.path.join(pre_dir,runs_folder)
+
+    #print("df_locations_tr_x:"+str(len(df_locations_tr_x)))
+    #print("df_files_test:"+str(len(df_files_test)))
+    df_train = pd.DataFrame(list(zip(df_files_train, df_locations_tr_x, df_locations_tr_y)),
+                                                           columns =['file','x', 'y'])
+    df_test = pd.DataFrame(list(zip(df_files_test, df_locations_ts_x, df_locations_ts_y)),
+                                                           columns =['file','x', 'y'])
+    df_files = pd.DataFrame(list(zip(df_files, df_locations_x, df_locations_y)),
+                                                           columns =['file','x', 'y'])
     
+    #print("Number of training submaps: "+str(len(df_train['file'])))
+    #print("Number of non-disjoint test submaps: "+str(len(df_test['file'])))
+
+    #print("df_train:"+str(len(df_train)))
+    #print("df_test:"+str(len(df_test)))
+    #pre_dir = os.path.join(pre_dir,runs_folder)
 
     if inside == True:
-        construct_dict(df_files_train, df_indices_train, "train_pickle/training_queries_baseline_"+str(data_index)+".pickle", folder_sizes_train, folder_sizes, folder_num, all_folders, pre_dir, k_nearest, k_furthest)
-        construct_dict(df_files_test, df_indices_test, "train_pickle/test_queries_baseline_"+str(data_index)+".pickle", folder_sizes_test, folder_sizes, folder_num, all_folders, pre_dir, k_nearest, k_furthest)
-        construct_dict(df_files, df_indices, "train_pickle/db_queries_baseline_"+str(data_index)+".pickle", folder_sizes, folder_sizes, folder_num, all_folders, pre_dir, k_nearest, k_furthest)
+        construct_dict(df_train,"train_pickle/training_queries_baseline_"+str(data_index)+".pickle", folder_sizes_train, folder_sizes, folder_num, all_folders, pre_dir)
+        construct_dict(df_test, "train_pickle/test_queries_baseline_"+str(data_index)+".pickle", folder_sizes_test, folder_sizes, folder_num, all_folders, pre_dir)
+        construct_dict(df_files, "train_pickle/db_queries_baseline_"+str(data_index)+".pickle", folder_sizes, folder_sizes, folder_num, all_folders, pre_dir)
     else:
-        construct_dict(df_files_train, df_indices_train, "generating_queries/train_pickle/training_queries_baseline_"+str(data_index)+".pickle", folder_sizes_train, folder_sizes, folder_num, all_folders, pre_dir, k_nearest, k_furthest, definite_positives=definite_positives)
-        construct_dict(df_files_test, df_indices_test, "generating_queries/train_pickle/test_queries_baseline_"+str(data_index)+".pickle", folder_sizes_test, folder_sizes, folder_num, all_folders, pre_dir, k_nearest, k_furthest, definite_positives=definite_positives)
-        construct_dict(df_files, df_indices, "generating_queries/train_pickle/db_queries_baseline_"+str(data_index)+".pickle", folder_sizes, folder_sizes, folder_num, all_folders, pre_dir, k_nearest, k_furthest, definite_positives=definite_positives)
+        construct_dict(df_train, "generating_queries/train_pickle/training_queries_baseline_"+str(data_index)+".pickle", folder_sizes_train, folder_sizes, folder_num, all_folders, pre_dir, definite_positives=definite_positives)
+        construct_dict(df_test, "generating_queries/train_pickle/test_queries_baseline_"+str(data_index)+".pickle", folder_sizes_test, folder_sizes, folder_num, all_folders, pre_dir, definite_positives=definite_positives)
+        construct_dict(df_files, "generating_queries/train_pickle/db_queries_baseline_"+str(data_index)+".pickle", folder_sizes, folder_sizes, folder_num, all_folders, pre_dir, definite_positives=definite_positives)
+
 if __name__ == "__main__":
     for i in range(20):
         generate(i)
