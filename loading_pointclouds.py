@@ -146,7 +146,7 @@ def jitter_point_cloud(batch_data, sigma=0.005, clip=0.05):
 
 def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, DB_QUERIES, file_sizes, hard_neg=[], other_neg=False):
     query = load_pc_file(dict_value["query"])  # Nx3
-    print("query:"+str(dict_value["query"]))
+    #print("query:"+str(dict_value["query"]))
     
     folder_num = int(dict_value["query"].split("/")[-2].split("_")[-1])
     
@@ -158,23 +158,15 @@ def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, DB_QUERIES, file_s
         for i in range(folder_num):
             count_overhead = count_overhead + file_sizes[i]
     
-    print("file_sizes:"+str(file_sizes))
-    print("count_overhead:"+str(count_overhead))
     #print("DB_QUERIES[count_overhead]:"+str(DB_QUERIES[count_overhead]))
 
     random.shuffle(dict_value["positives"])
     pos_files = []
-    pos_files_check = []
 
-    print("DB_QUERIES:"+str(len(DB_QUERIES)))
-    assert(0)
     for i in range(num_pos):
-        print("dict_value[positive][i]:"+str(dict_value["positives"][i]))
-        print("here:",DB_QUERIES[dict_value["positives"][i]+count_overhead])
         pos_files.append(DB_QUERIES[dict_value["positives"][i]+count_overhead]["query"])
     
-    print("pos_files:"+str(pos_files))
-    #positives= load_pc_files(dict_value["positives"][0:num_pos])
+    #print("pos_files:"+str(pos_files))
     positives = load_pc_files(pos_files,full_path=True)
     assert(positives.shape == (2,cfg.NUM_POINTS,3))
     '''
@@ -194,29 +186,29 @@ def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, DB_QUERIES, file_s
     neg_indices = []
     if(len(hard_neg) == 0):
         random.shuffle(dict_value["negatives"])
+        #print("dict_value[negatives]:"+str(dict_value["negatives"]))
         for i in range(num_neg):
-            neg_files.append(DB_QUERIES[dict_value["negatives"][i]+count_overhead]["query"])
-            #file_ = os.path.join(fol, '{0:04}'.format(int(dict_value["negatives"][i]))+".pcd")
-            #neg_files.append(file_)
-            print("neg:"+str(dict_value["negatives"][i]))
+            neg_files.append(DB_QUERIES[dict_value["negatives"][i]]["query"])
             neg_indices.append(dict_value["negatives"][i])
 
     else:
         random.shuffle(dict_value["negatives"])
         for i in hard_neg:
-            neg_files.append(DB_QUERIES[i+count_overhead]["query"])
+            neg_files.append(DB_QUERIES[i]["query"])
             neg_indices.append(i)
         j = 0
         while(len(neg_files) < num_neg):
 
             if not dict_value["negatives"][j] in hard_neg:
                 neg_files.append(
-                    DB_QUERIES[dict_value["negatives"][j]+count_overhead]["query"])
+                    DB_QUERIES[dict_value["negatives"][j]]["query"])
                 neg_indices.append(dict_value["negatives"][j])
             j += 1
 
     negatives = load_pc_files(neg_files,full_path=True)
-    print("neg_files:"+str(neg_files))
+    #print("neg_files:"+str(neg_files[0]))
+    #print("neg_files:"+str(neg_files[1]))
+
     assert(negatives.shape == (18,cfg.NUM_POINTS,3))
     if other_neg is False:
         return [query, positives, negatives]
@@ -227,7 +219,7 @@ def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, DB_QUERIES, file_s
         for pos in dict_value["positives"]:
             neighbors.append(pos)
         for neg in neg_indices:
-            for pos in DB_QUERIES[neg+count_overhead]["positives"]:
+            for pos in DB_QUERIES[neg]["positives"]:
                 neighbors.append(pos)
         possible_negs = list(set(QUERY_DICT.keys())-set(neighbors))
         random.shuffle(possible_negs)

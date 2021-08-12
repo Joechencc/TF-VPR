@@ -220,7 +220,6 @@ def train():
     for epoch in range(starting_epoch, cfg.MAX_EPOCH):
         print(epoch)
         print()
-        print("trusted_positives:"+str(np.array(trusted_positives).shape))
         generate_dataset.generate(data_index, definite_positives=trusted_positives, inside=False)  
         TRAIN_FILE = 'generating_queries/train_pickle/training_queries_baseline_'+str(data_index)+'.pickle'
         TEST_FILE = 'generating_queries/train_pickle/test_queries_baseline_'+str(data_index)+'.pickle'
@@ -587,7 +586,6 @@ def get_latent_vectors(model, dict_to_process):
             q_output = output
 
     model.train()
-    print(q_output.shape)
     return q_output
 
 

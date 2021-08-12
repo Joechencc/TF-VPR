@@ -13,7 +13,6 @@ import config as cfg
 import scipy.io as sio
 import torch
 
-
 from loading_pointclouds import *
 sys.path.append('/usr/local/lib/python3.6/dist-packages/python_pcl-0.3-py3.6-linux-x86_64.egg/')
 import pcl as pcl_lib
@@ -49,7 +48,6 @@ def construct_query_dict(df_files, df_indice, filename):
 
 def construct_dict(df_files, filename, folder_sizes, all_folder_sizes, folder_num, all_folders, pre_dir, definite_positives=None):
     queries = {}
-    print("folder_sizes:",folder_sizes)
     for num in range(folder_num):
         #print("df_files:"+str(len(df_files)))
         if num == 0:
@@ -64,18 +62,39 @@ def construct_dict(df_files, filename, folder_sizes, all_folder_sizes, folder_nu
         df_centroids = df_files[overhead:overhead + folder_sizes[num]]
         #assert(0)
         tree = KDTree(df_centroids[['x','y']])
-        ind_nn = tree.query_radius(df_centroids[['x','y']],r=5)
         ind_r = tree.query_radius(df_centroids[['x','y']], r=50)
+
         for i in range(len(df_centroids)):
+            radius = 0.5
+            ind_nn = tree.query_radius(df_centroids[['x','y']],r=radius)
             query = df_centroids.iloc[i]["file"]
             positives = np.setdiff1d(ind_nn[i],[i]).tolist()
-            negatives = np.setdiff1d(
-                        df_centroids.index.values.tolist(),ind_r[i]).tolist()
+            negatives = np.setdiff1d(df_centroids.index.values.tolist(),ind_r[i]).tolist()
             random.shuffle(negatives)
+
+            while(len(positives)<4):
+                radius = radius+0.5
+                ind_nn = tree.query_radius(df_centroids[['x','y']],r=radius)
+                query = df_centroids.iloc[i]["file"]
+                positives = np.setdiff1d(ind_nn[i],[i]).tolist()
+                negatives = np.setdiff1d(
+                            df_centroids.index.values.tolist(),ind_r[i]).tolist()
+                random.shuffle(negatives)
             queries[i+overhead] = {"query":df_centroids.iloc[i]['file'],
                           "positives":positives,"negatives":negatives}
             #print("query:"+str(query))
             #print("positives:"+str(positives))
+            #print("negatives:"+str(max(negatives)))
+            '''
+            max_dis = 0
+            for pos in positives:
+                x_delta = df_centroids.iloc[pos+overhead]['x'] - df_centroids.iloc[i]['x']
+                y_delta = df_centroids.iloc[pos+overhead]['y'] - df_centroids.iloc[i]['y']
+                dis = math.sqrt(x_delta**2 + y_delta**2)
+                print("dis:"+str(dis))
+            if dis > max_dis:
+                max_dis = dis
+            '''
             #print("negatives:"+str(len(negatives)))
     with open(filename, 'wb') as handle:
         pickle.dump(queries, handle, protocol=pickle.HIGHEST_PROTOCOL)
