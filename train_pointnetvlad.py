@@ -220,7 +220,7 @@ def train():
     for epoch in range(starting_epoch, cfg.MAX_EPOCH):
         print(epoch)
         print()
-        print("trusted_positives:"+str(np.array(trusted_positives).shape))
+        #print("trusted_positives:"+str(np.array(trusted_positives).shape))
         generate_dataset.generate(data_index, definite_positives=trusted_positives, inside=False)  
         TRAIN_FILE = 'generating_queries/train_pickle/training_queries_baseline_'+str(data_index)+'.pickle'
         TEST_FILE = 'generating_queries/train_pickle/test_queries_baseline_'+str(data_index)+'.pickle'
@@ -361,8 +361,8 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINI
     #print("TRAINING_QUERIES:"+str(TRAINING_QUERIES))
     train_file_idxs = np.arange(0, len(TRAINING_QUERIES.keys()))
     np.random.shuffle(train_file_idxs)
-    #for i in range(len(train_file_idxs)//cfg.BATCH_NUM_QUERIES):
-    for i in range(1):
+    for i in range(len(train_file_idxs)//cfg.BATCH_NUM_QUERIES):
+    #for i in range(1):
         # for i in range (5):
         batch_keys = train_file_idxs[i *
                                      cfg.BATCH_NUM_QUERIES:(i+1)*cfg.BATCH_NUM_QUERIES]
@@ -394,7 +394,8 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINI
                     query, negatives, num_to_take)
                 q_tuples.append(
                     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
-                                    TRAINING_QUERIES, hard_negs, other_neg=True))
+                                    TRAINING_QUERIES, DB_QUERIES, file_sizes, hard_negs, other_neg=True))
+
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
             else:
@@ -409,7 +410,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINI
                     HARD_NEGATIVES[batch_keys[j]], hard_negs))
                 q_tuples.append(
                     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
-                                    TRAINING_QUERIES, hard_negs, other_neg=True))
+                                    TRAINING_QUERIES,  DB_QUERIES, file_sizes, hard_negs, other_neg=True))
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
             
