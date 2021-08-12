@@ -255,7 +255,7 @@ def train():
                 else:
                     overhead = 0
                     for i in range(index):
-                        overhead = overhead + DATABASE_SETS_SIZE[0]
+                        overhead = overhead + DATABASE_SETS_SIZE[i]
                     db_range = np.arange(DATABASE_SETS_SIZE[index])
                     db_range = db_range + overhead
                 
@@ -296,7 +296,7 @@ def train():
                 else:
                     overhead = 0
                     for i in range(index):
-                        overhead = overhead + DATABASE_SETS_SIZE[0]
+                        overhead = overhead + DATABASE_SETS_SIZE[i]
                     db_range = np.arange(DATABASE_SETS_SIZE[index])
                     db_range = db_range + overhead
 
@@ -324,6 +324,9 @@ def train():
                         data_index_constraint = data_index
                     '''
                     pre_trusted_positive = np.array(pos_set)[np.argsort(pos_dis)[::-1][:(cfg.INIT_TRUST+int(data_index-1)//cfg.INIT_TRUST_SCALAR)]]
+                    folder_path = os.path.join(cfg.DATASET_FOLDER,folders[index])
+                    all_files = list(sorted(os.listdir(folder_path)))
+                    all_files.remove('gt_pose.mat')
                     #print("pre_trusted_positive:"+str(pre_trusted_positive.shape))
                     trusted_positive = VFC.filter_trusted(folder_path, all_files, index2, pre_trusted_positive)
                     #print("trusted_positive:"+str(trusted_positive))
@@ -358,8 +361,8 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINI
     #print("TRAINING_QUERIES:"+str(TRAINING_QUERIES))
     train_file_idxs = np.arange(0, len(TRAINING_QUERIES.keys()))
     np.random.shuffle(train_file_idxs)
-    for i in range(len(train_file_idxs)//cfg.BATCH_NUM_QUERIES):
-    #for i in range(1):
+    #for i in range(len(train_file_idxs)//cfg.BATCH_NUM_QUERIES):
+    for i in range(1):
         # for i in range (5):
         batch_keys = train_file_idxs[i *
                                      cfg.BATCH_NUM_QUERIES:(i+1)*cfg.BATCH_NUM_QUERIES]
