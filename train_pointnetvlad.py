@@ -239,7 +239,7 @@ def train():
 
         #eval_recall, db_vec = evaluate.evaluate_model(model, True) #db_vec gives the evaluate nearest neighbours, folder* 2048* positves_dim
         db_vec, DATABASE_SETS_SIZE = evaluate.evaluate_model(model, epoch, True, full_pickle=True)
-        #eval_recall, _, _ = evaluate.evaluate_model(model, epoch, True, full_pickle=False)
+        _, _ = evaluate.evaluate_model(model, epoch, True, full_pickle=False)
         #print("DATABASE_SETS_SIZE:"+str(DATABASE_SETS_SIZE))
         #assert(0)
         if potential_positives is None:
