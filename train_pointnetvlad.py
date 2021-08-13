@@ -242,6 +242,7 @@ def train():
         _, _ = evaluate.evaluate_model(model, epoch, True, full_pickle=False)
         #print("DATABASE_SETS_SIZE:"+str(DATABASE_SETS_SIZE))
         #assert(0)
+        '''
         if potential_positives is None:
             potential_positives = []
             potential_distributions = []
@@ -316,12 +317,6 @@ def train():
                     #assert(0)
                     new_potential_positive.append(pos_set)
                     new_potential_distribution.append(pos_dis)
-                    '''
-                    if data_index-1 >=5:
-                        data_index_constraint = 6
-                    else:
-                        data_index_constraint = data_index
-                    '''
                     pre_trusted_positive = np.array(pos_set)[np.argsort(pos_dis)[::-1][:(cfg.INIT_TRUST+int(data_index-1)//cfg.INIT_TRUST_SCALAR)]]
                     folder_path = os.path.join(cfg.DATASET_FOLDER,folders[index])
                     all_files = list(sorted(os.listdir(folder_path)))
@@ -344,7 +339,7 @@ def train():
         #log_string('EVAL RECALL: %s' % str(eval_recall))
 
         #train_writer.add_scalar("Val Recall", eval_recall, epoch)
-
+        '''
 
 def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINING_QUERIES, TEST_QUERIES, DB_QUERIES, file_sizes):
     global HARD_NEGATIVES
