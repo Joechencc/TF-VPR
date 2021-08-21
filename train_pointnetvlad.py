@@ -279,6 +279,7 @@ def train():
                     #print("pre_trusted_positive:"+str(pre_trusted_positive))
                     #print("all_files:"+str(all_files))
                     trusted_pos = VFC.filter_trusted(folder_path, all_files, index2, pre_trusted_positive)  
+                    trusted_pos = np.array(list(set(trusted_pos)),dtype=np.int32)
                     trusted_positive.append(trusted_pos)
 
                 trusted_positives.append(trusted_positive)
@@ -323,13 +324,19 @@ def train():
                     else:
                         data_index_constraint = data_index
                     '''
+                    previous_trusted_positive = trusted_positives[index][index2]
                     pre_trusted_positive = np.array(pos_set)[np.argsort(pos_dis)[::-1][:(cfg.INIT_TRUST+int(data_index-1)//cfg.INIT_TRUST_SCALAR)]]
+                    pre_trusted_positive = np.setdiff1d(pre_trusted_positive, previous_trusted_positive)
                     folder_path = os.path.join(cfg.DATASET_FOLDER,folders[index])
                     all_files = list(sorted(os.listdir(folder_path)))
                     all_files.remove('gt_pose.mat')
-                    #print("pre_trusted_positive:"+str(pre_trusted_positive.shape))
-                    trusted_positive = VFC.filter_trusted(folder_path, all_files, index2, pre_trusted_positive)
-                    #print("trusted_positive:"+str(trusted_positive))
+                                                             
+                    if len(pre_trusted_positive) == 0:
+                        trusted_positive = previous_trusted_positive
+                    else:
+                        trusted_positive = list(previous_trusted_positive)
+                        trusted_positive.extend(list(VFC.filter_trusted(folder_path, all_files, index2, pre_trusted_positive)))
+                    trusted_positive = np.array(list(set(trusted_positive)),dtype=np.int32)
                     new_trusted_positive.append(trusted_positive)
 
                 new_potential_positives.append(new_potential_positive)
@@ -609,7 +616,6 @@ def run_model(model, queries, positives, negatives, other_neg, require_grad=True
     else:
         with torch.no_grad():
             output = model(feed_tensor)
-    #print("output:"+str(output))
     output = output.view(cfg.BATCH_NUM_QUERIES, -1, cfg.FEATURE_OUTPUT_DIM)
     o1, o2, o3, o4 = torch.split(
         output, [1, cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY, 1], dim=1)

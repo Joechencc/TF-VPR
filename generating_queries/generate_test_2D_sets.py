@@ -19,7 +19,7 @@ runs_folder = "2D_data"
 
 filename = "gt_pose.mat"
 
-evaluate_all = False
+evaluate_all = True
 
 all_folders = sorted(os.listdir(os.path.join(base_path,runs_folder)))
 
@@ -27,9 +27,9 @@ folders = []
 
 # All runs are used for training (both full and partial)
 if evaluate_all:
-    index_list = list(range(6))
+    index_list = [0]
 else:
-    index_list = [2,4]
+    index_list = [0]
 print("Number of runs: "+str(len(index_list)))
 for index in index_list:
     folders.append(all_folders[index])
@@ -93,6 +93,8 @@ def construct_query_dict(df_centroids, df_database, folder_num, indice_train, in
                     # indices of the positive matches in database i of each query (key) in test set j
                     queries_sets[j][key][i] = index[0].tolist()
     
+    print("queries_sets:"+str(queries_sets))
+    print("database_sets:"+str(np.array(database_sets)))
     output_to_file(queries_sets, filename_test)
     output_to_file(database_sets, filename_train)
 

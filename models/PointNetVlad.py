@@ -67,13 +67,11 @@ class NetVLADLoupe(nn.Module):
         vlad = torch.matmul(activation, x)
         vlad = torch.transpose(vlad, 2, 1)
         vlad = vlad - a
-
         vlad = F.normalize(vlad, dim=1, p=2)
         vlad = vlad.view((-1, self.cluster_size * self.feature_size))
         vlad = F.normalize(vlad, dim=1, p=2)
 
         vlad = torch.matmul(vlad, self.hidden1_weights)
-
         vlad = self.bn2(vlad)
 
         if self.gating:
