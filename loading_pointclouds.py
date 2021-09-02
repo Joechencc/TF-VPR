@@ -187,6 +187,7 @@ def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, DB_QUERIES, file_s
     if(len(hard_neg) == 0):
         random.shuffle(dict_value["negatives"])
         #print("dict_value[negatives]:"+str(dict_value["negatives"]))
+        #print("len(DB_QUERIES):"+str(len(DB_QUERIES)))
         for i in range(num_neg):
             neg_files.append(DB_QUERIES[dict_value["negatives"][i]]["query"])
             neg_indices.append(dict_value["negatives"][i])

@@ -45,7 +45,7 @@ parser.add_argument('--positives_per_query', type=int, default=2,
                     help='Number of potential positives in each training tuple [default: 2]')
 parser.add_argument('--negatives_per_query', type=int, default=18,
                     help='Number of definite negatives in each training tuple [default: 18]')
-parser.add_argument('--max_epoch', type=int, default=20,
+parser.add_argument('--max_epoch', type=int, default=100,
                     help='Epoch to run [default: 20]')
 parser.add_argument('--batch_num_queries', type=int, default=2,
                     help='Batch Size during training [default: 2]')
@@ -82,7 +82,7 @@ cfg.BATCH_NUM_QUERIES = FLAGS.batch_num_queries
 cfg.NUM_POINTS = 360
 cfg.TRAIN_POSITIVES_PER_QUERY = FLAGS.positives_per_query
 cfg.TRAIN_NEGATIVES_PER_QUERY = FLAGS.negatives_per_query
-cfg.MAX_EPOCH = FLAGS.max_epoch
+cfg.MAX_EPOCH = 100
 cfg.BASE_LEARNING_RATE = FLAGS.learning_rate
 cfg.MOMENTUM = FLAGS.momentum
 cfg.OPTIMIZER = FLAGS.optimizer
@@ -99,6 +99,7 @@ cfg.LOSS_IGNORE_ZERO_BATCH = FLAGS.loss_ignore_zero_batch
 
 cfg.TRAIN_FILE = 'generating_queries/training_queries_baseline.pickle'
 cfg.TEST_FILE = 'generating_queries/test_queries_baseline.pickle'
+cfg.DB_FILE = 'generating_queries/db_queries_baseline.pickle'
 
 cfg.LOG_DIR = FLAGS.log_dir
 if not os.path.exists(cfg.LOG_DIR):
@@ -110,8 +111,9 @@ cfg.RESULTS_FOLDER = FLAGS.results_dir
 print("cfg.RESULTS_FOLDER:"+str(cfg.RESULTS_FOLDER))
 
 # Load dictionary of training queries
-#TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
-#TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
+TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
+TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
+DB_QUERIES = get_queries_dict(cfg.DB_FILE)
 #TRAINING_QUERIES_init = get_queries_dict(cfg.TRAIN_FILE)
 #TEST_QUERIES_init = get_queries_dict(cfg.TEST_FILE)
 
@@ -220,15 +222,15 @@ def train():
     for epoch in range(starting_epoch, cfg.MAX_EPOCH):
         print(epoch)
         print()
-        generate_dataset.generate(data_index, definite_positives=trusted_positives, inside=False)  
-        TRAIN_FILE = 'generating_queries/train_pickle/training_queries_baseline_'+str(data_index)+'.pickle'
-        TEST_FILE = 'generating_queries/train_pickle/test_queries_baseline_'+str(data_index)+'.pickle'
-        DB_FILE = 'generating_queries/train_pickle/db_queries_baseline_'+str(data_index)+'.pickle'
+        #generate_dataset.generate(data_index, definite_positives=trusted_positives, inside=False)  
+        #TRAIN_FILE = 'generating_queries/train_pickle/training_queries_baseline.pickle'
+        #TEST_FILE = 'generating_queries/train_pickle/test_queries_baseline.pickle'
+        #DB_FILE = 'generating_queries/train_pickle/db_queries_baseline.pickle'
         data_index = data_index+1
         # Load dictionary of training queries
-        TRAINING_QUERIES = get_queries_dict(TRAIN_FILE)
-        TEST_QUERIES = get_queries_dict(TEST_FILE)
-        DB_QUERIES = get_queries_dict(DB_FILE)
+        #TRAINING_QUERIES = get_queries_dict(TRAIN_FILE)
+        #TEST_QUERIES = get_queries_dict(TEST_FILE)
+        #DB_QUERIES = get_queries_dict(DB_FILE)
         log_string('**** EPOCH %03d ****' % (epoch))
         sys.stdout.flush()
 
@@ -238,7 +240,7 @@ def train():
         cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(epoch) + '.txt'
 
         #eval_recall, db_vec = evaluate.evaluate_model(model, True) #db_vec gives the evaluate nearest neighbours, folder* 2048* positves_dim
-        db_vec, DATABASE_SETS_SIZE = evaluate.evaluate_model(model, epoch, True, full_pickle=True)
+        #db_vec, DATABASE_SETS_SIZE = evaluate.evaluate_model(model, epoch, True, full_pickle=True)
         _, _ = evaluate.evaluate_model(model, epoch, True, full_pickle=False)
         #print("DATABASE_SETS_SIZE:"+str(DATABASE_SETS_SIZE))
         #assert(0)
