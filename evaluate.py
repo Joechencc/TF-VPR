@@ -45,10 +45,12 @@ def evaluate():
     print("ave_one_percent_recall:"+str(ave_one_percent_recall))
 
 
-def evaluate_model(model,epoch,save=False,full_pickle=False):
+def evaluate_model(model,optimizer,epoch,save=False,full_pickle=False):
     if save:
         torch.save({
             'state_dict': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'epoch': epoch,
             }, cfg.LOG_DIR + "checkpoint.pth.tar")
     
     #checkpoint = torch.load(cfg.LOG_DIR + "checkpoint.pth.tar")
@@ -161,7 +163,7 @@ def get_latent_vectors(model, dict_to_process):
         file_names = []
         for index in file_indices:
             file_names.append(dict_to_process[index]["query"])
-        queries = load_pc_files(file_names,True)
+        queries = load_mat_files(file_names,True)
 
         with torch.no_grad():
             feed_tensor = torch.from_numpy(queries).float()
@@ -187,7 +189,7 @@ def get_latent_vectors(model, dict_to_process):
 
         for index in file_indices:
             file_names.append(dict_to_process[index]["query"])
-        queries = load_pc_files(file_names,True)
+        queries = load_mat_files(file_names,True)
 
         with torch.no_grad():
             feed_tensor = torch.from_numpy(queries).float()

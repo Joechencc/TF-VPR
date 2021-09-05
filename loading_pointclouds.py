@@ -3,7 +3,13 @@ import pickle5 as pickle
 import numpy as np
 import random
 import config as cfg
-from open3d import read_point_cloud
+from open3d import *
+
+import struct
+import sys
+sys.path.append('/usr/local/lib/python3.6/dist-packages/python_pcl-0.3-py3.6-linux-x86_64.egg/')
+import pcl
+import scipy.io as sio
 
 def get_queries_dict(filename):
     # key:{'query':file,'positives':[files],'negatives:[files], 'neighbors':[keys]}
@@ -107,6 +113,86 @@ def load_pc_files(filenames,full_path):
     pcs = np.array(pcs)
     return pcs
 
+def farthest_point_sampling(pc: np.ndarray, n_points: int) -> np.ndarray:
+    n = pc.shape[0]
+    sampled_index = np.zeros(n_points, dtype=np.int)
+    
+    farthest = np.random.randint(0, n)
+    distance = np.ones(n) * 1e10
+    
+    for i in range(n_points):
+        sampled_index[i] = farthest
+        point_ref = pc[farthest]
+        dist = np.sum((pc - point_ref) ** 2, axis=1)
+        mask = dist < distance
+        distance[mask] = dist[mask]
+        farthest = distance.argmax(axis=-1)
+
+    return sampled_index
+
+def downsamplePCL(pcd_np):
+    '''
+    voxel_size = 0.001
+    target_num_point = 1024
+    
+    numPointBefore = pcd_np.shape[0]
+    cloud = pcl.PointCloud(pcd_np.astype(np.float32))
+    #cloud = o3d.geometry.PointCloud()
+    vox = cloud.make_voxel_grid_filter()
+    leaf_size = 3
+    vox.set_leaf_size(leaf_size, leaf_size, leaf_size)
+    '''
+
+    k=2048
+    indices = farthest_point_sampling(pcd_np, k)
+    result = pcd_np[indices]
+    return result
+
+
+def load_bin_file(filename, full_path=False):
+    size_float = 4
+    list_pcd = []
+    
+    with open(filename, "rb") as f:    
+        byte = f.read(size_float * 4)
+
+        while byte:
+            x, y, z, intensity = struct.unpack("ffff", byte)
+            list_pcd.append([x, y, z])            
+            byte = f.read(size_float * 4)
+
+    np_pcd = np.asarray(list_pcd)
+    #print("np_pcd:"+str(np_pcd.shape))
+    np_pcd = downsamplePCL(np_pcd)
+    #print("np_pcd_after:"+str(np_pcd.shape))
+    #assert(0)
+    return np_pcd
+
+def load_bin_files(filenames,full_path):
+    pcs = []
+    
+    for filename in filenames:
+        # print(filename)
+        pc = load_bin_file(filename,full_path=full_path)
+        pcs.append(pc)
+    pcs = np.array(pcs)
+    return pcs
+
+def load_mat_file(filename, full_path=False):
+    mat_pcd = sio.loadmat(filename)
+    np_pcd = np.asarray(mat_pcd['points'])
+    return np_pcd
+
+def load_mat_files(filenames,full_path):
+    pcs = []
+
+    for filename in filenames:
+        # print(filename)
+        pc = load_mat_file(filename,full_path=full_path)
+        pcs.append(pc)
+    pcs = np.array(pcs)    
+    return pcs
+
 
 def rotate_point_cloud(batch_data):
     """ Randomly rotate the point clouds to augument the dataset
@@ -145,11 +231,11 @@ def jitter_point_cloud(batch_data, sigma=0.005, clip=0.05):
 
 
 def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, DB_QUERIES, file_sizes, hard_neg=[], other_neg=False):
-    query = load_pc_file(dict_value["query"])  # Nx3
+    query = load_mat_file(dict_value["query"])  # Nx3
     #print("query:"+str(dict_value["query"]))
-    
-    folder_num = int(dict_value["query"].split("/")[-2].split("_")[-1])
-    
+    #folder_num = int(dict_value["query"].split("/")[-2].split("_")[-1])
+    folder_num = 0
+
     count_overhead = 0
         
     if folder_num == 0:
@@ -166,9 +252,7 @@ def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, DB_QUERIES, file_s
     for i in range(num_pos):
         pos_files.append(DB_QUERIES[dict_value["positives"][i]+count_overhead]["query"])
     
-    #print("pos_files:"+str(pos_files))
-    positives = load_pc_files(pos_files,full_path=True)
-    assert(positives.shape == (2,cfg.NUM_POINTS,3))
+    positives = load_mat_files(pos_files,full_path=True)
     '''
     B, P, _ = positives.shape
     new_positives = np.zeros((B*(cfg.ROT_NUM+1),P,3), dtype = positives.dtype)
@@ -206,13 +290,10 @@ def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, DB_QUERIES, file_s
                 neg_indices.append(dict_value["negatives"][j])
             j += 1
 
-    negatives = load_pc_files(neg_files,full_path=True)
-    #print("neg_files:"+str(neg_files[0]))
-    #print("neg_files:"+str(neg_files[1]))
+    negatives = load_mat_files(neg_files,full_path=True)
 
-    assert(negatives.shape == (18,cfg.NUM_POINTS,3))
     if other_neg is False:
-        return [query, positives, negatives]
+        return [query, positives, negatives]   
     # For Quadruplet Loss
     else:
         # get neighbors of negatives and query
@@ -228,10 +309,16 @@ def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, DB_QUERIES, file_s
         if(len(possible_negs) == 0):
             return [query, positives, negatives, np.array([])]
         
-        neg2 = load_pc_file(DB_QUERIES[possible_negs[0]]["query"],full_path=True)
-        #print("neg2:"+str(DB_QUERIES[possible_negs[0]]["query"]))
+        neg2 = load_mat_file(DB_QUERIES[possible_negs[0]]["query"],full_path=True)
         #assert(0)
-        return [query, positives, negatives, neg2]
+        '''
+        print("query:"+str(np.expand_dims(query, axis=0).shape))
+        print("positives:"+str(positives.shape))
+        print("negatives:"+str(negatives.shape))
+        print("neg2:"+str(np.expand_dims(neg2, axis=0).shape))
+        '''
+        check_array = [np.expand_dims(query, axis=0), positives, negatives, np.expand_dims(neg2, axis=0)]
+        return [np.expand_dims(query, axis=0), positives, negatives, np.expand_dims(neg2, axis=0)]
 
 
 def get_rotated_tuple(dict_value, num_pos, num_neg, QUERY_DICT, hard_neg=[], other_neg=False):

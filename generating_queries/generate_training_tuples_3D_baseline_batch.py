@@ -145,9 +145,9 @@ def generate(data_index, definite_positives=None, inside=True):
 
         for (indx, file_) in enumerate(all_files): 
             if indx in test_index:
-                df_files_test.append(os.path.join(pre_dir,folder,file_))
+                df_files_test.append(os.path.join(pre_dir,folder,"velodyne_points","data",file_))
             else:
-                df_files_train.append(os.path.join(pre_dir,folder,file_))
+                df_files_train.append(os.path.join(pre_dir,folder,"velodyne_points","data",file_))
             df_files.append(os.path.join(pre_dir,folder,file_))
 
     #print("df_locations_tr_x:"+str(len(df_locations_tr_x)))

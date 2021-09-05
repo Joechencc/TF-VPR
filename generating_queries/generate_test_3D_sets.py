@@ -15,13 +15,14 @@ import torch
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 base_path = "/data2/cc_data"
-runs_folder = "2D_data"
+runs_folder = "raw_data/2011_09_29"
 
 filename = "gt_pose.mat"
 
-evaluate_all = True
+evaluate_all = False
 
 all_folders = sorted(os.listdir(os.path.join(base_path,runs_folder)))
+print("all_folders:"+str(all_folders))
 
 folders = []
 
@@ -46,9 +47,9 @@ def output_to_file(output, filename):
 def construct_query_dict(df_centroids, df_database, folder_num, indice_train, indice_test, filename_train, filename_test, test=False):
     database_trees = []
     test_trees = []
-    tree = KDTree(df_centroids[['x','y']])
-    ind_nn = tree.query_radius(df_centroids[['x','y']],r=15)
-    ind_r = tree.query_radius(df_centroids[['x','y']], r=50)
+    tree = KDTree(df_centroids[['lag','lon','alt']])
+    ind_nn = tree.query_radius(df_centroids[['lag','lon','alt']],r=15)
+    ind_r = tree.query_radius(df_centroids[['lag','lon','alt']], r=50)
     queries_sets = []
     database_sets = []
     count_index = 0
@@ -60,9 +61,11 @@ def construct_query_dict(df_centroids, df_database, folder_num, indice_train, in
             #print("folder:"+str(folder))
             #print("query:"+str(query))
             queries[len(queries.keys())] = {"query":query,
-                "x":float(df_centroids.iloc[temp_indx]['x']),"y":float(df_centroids.iloc[temp_indx]['y'])}
+                    "lag":float(df_centroids.iloc[temp_indx]['lag']),
+                    "lon":float(df_centroids.iloc[temp_indx]['lon']),
+                    "alt":float(df_centroids.iloc[temp_indx]['alt'])}
         queries_sets.append(queries)
-        test_tree = KDTree(df_centroids[['x','y']])
+        test_tree = KDTree(df_centroids[['lag','lon','alt']])
         test_trees.append(test_tree)
         count_index = count_index + indice_test[folder]
 
@@ -73,9 +76,9 @@ def construct_query_dict(df_centroids, df_database, folder_num, indice_train, in
             temp_indx = count_index + i
             data = df_database.iloc[temp_indx]["file"]
             dataset[len(dataset.keys())] = {"query":data,
-                     "x":float(df_database.iloc[temp_indx]['x']),"y":float(df_database.iloc[temp_indx]['y'])}
+                "lag":float(df_database.iloc[temp_indx]['lag']),"lon":float(df_database.iloc[temp_indx]['lon']),"alt":float(df_database.iloc[temp_indx]['alt'])}
         database_sets.append(dataset)
-        database_tree = KDTree(df_database[['x','y']])
+        database_tree = KDTree(df_database[['lag','lon','alt']])
         database_trees.append(database_tree)
         count_index = count_index + indice_train[folder]
 
@@ -87,7 +90,7 @@ def construct_query_dict(df_centroids, df_database, folder_num, indice_train, in
                     continue
                 for key in range(len(queries_sets[j].keys())):
                     coor = np.array(
-                        [[queries_sets[j][key]["x"],queries_sets[j][key]["y"]]])
+                        [[queries_sets[j][key]["lag"],queries_sets[j][key]["lon"],queries_sets[j][key]["alt"]]])
                     index = tree.query_radius(coor, r=25)
                     #print("index:"+str(index))
                     # indices of the positive matches in database i of each query (key) in test set j
@@ -97,8 +100,8 @@ def construct_query_dict(df_centroids, df_database, folder_num, indice_train, in
     output_to_file(database_sets, filename_train)
 
 # Initialize pandas DataFrame
-df_train = pd.DataFrame(columns=['file','x','y'])
-df_test = pd.DataFrame(columns=['file','x','y'])
+df_train = pd.DataFrame(columns=['file','lag','lon','alt'])
+df_test = pd.DataFrame(columns=['file','lag','lon','alt'])
 
 df_files_test = []
 df_files_train =[]
@@ -106,10 +109,13 @@ df_files_train =[]
 indice_train = []
 indice_test = []
 
-df_locations_tr_x = []
-df_locations_tr_y = []
-df_locations_ts_x = []
-df_locations_ts_y = []
+df_locations_tr_lag = []
+df_locations_tr_lon = []
+df_locations_tr_alt = []
+
+df_locations_ts_lag = []
+df_locations_ts_lon = []
+df_locations_ts_alt = []
 
 for folder in folders:
     df_locations = sio.loadmat(os.path.join(
@@ -127,23 +133,26 @@ for folder in folders:
     #for i in test_index:
     #    train_index.pop(i)
     
-    df_locations_tr_x.extend(list(df_locations[train_index,0]))
-    df_locations_tr_y.extend(list(df_locations[train_index,1]))
-    df_locations_ts_x.extend(list(df_locations[test_index,0]))
-    df_locations_ts_y.extend(list(df_locations[test_index,1]))
+    df_locations_tr_lag.extend(list(df_locations[train_index,0]))
+    df_locations_tr_lon.extend(list(df_locations[train_index,1]))
+    df_locations_tr_alt.extend(list(df_locations[train_index,2]))
 
-    all_files = list(sorted(os.listdir(os.path.join(base_path,runs_folder,folder))))
-    all_files.remove('gt_pose.mat')
+    df_locations_ts_lag.extend(list(df_locations[test_index,0]))
+    df_locations_ts_lon.extend(list(df_locations[test_index,1]))
+    df_locations_ts_alt.extend(list(df_locations[test_index,2]))
+
+    all_files = list(sorted(os.listdir(os.path.join(base_path,runs_folder,folder,"velodyne_points/data2"))))
+    #all_files.remove('gt_pose.mat')
 
     for (indx, file_) in enumerate(all_files):
         if indx in test_index:
-            df_files_test.append(os.path.join(base_path,runs_folder,folder,file_))
-        df_files_train.append(os.path.join(base_path,runs_folder,folder,file_))
+            df_files_test.append(os.path.join(base_path,runs_folder,folder,"velodyne_points","data2",file_))
+        df_files_train.append(os.path.join(base_path,runs_folder,folder,"velodyne_points","data2",file_))
 
-df_train = pd.DataFrame(list(zip(df_files_train, df_locations_tr_x, df_locations_tr_y)),
-                                               columns =['file','x', 'y'])
-df_test = pd.DataFrame(list(zip(df_files_test, df_locations_ts_x, df_locations_ts_y)),
-                                               columns =['file','x', 'y'])
+df_train = pd.DataFrame(list(zip(df_files_train, df_locations_tr_lag, df_locations_tr_lon, df_locations_tr_alt)),
+                                               columns =['file','lag', 'lon', 'alt'])
+df_test = pd.DataFrame(list(zip(df_files_test, df_locations_ts_lag, df_locations_ts_lon,df_locations_ts_alt)),
+                                               columns =['file','lag', 'lon', 'alt'])
 
 print("Number of training submaps: "+str(len(df_train['file'])))
 print("Number of non-disjoint test submaps: "+str(len(df_test['file'])))

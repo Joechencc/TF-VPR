@@ -1,5 +1,5 @@
 # GLOBAL
-NUM_POINTS = 360
+NUM_POINTS = 512
 FEATURE_OUTPUT_DIM = 3839
 RESULTS_FOLDER = "results/"
 OUTPUT_FILE = "results/results.txt"

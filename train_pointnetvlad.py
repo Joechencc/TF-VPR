@@ -18,7 +18,7 @@ import evaluate
 import loss.pointnetvlad_loss as PNV_loss
 import models.PointNetVlad as PNV
 import models.Verification as VFC
-import generating_queries.generate_training_tuples_2D_baseline_batch as generate_dataset
+import generating_queries.generate_training_tuples_3D_baseline_batch as generate_dataset
 
 import torch
 import torch.nn as nn
@@ -32,8 +32,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
-
-
 
 cudnn.enabled = True
 
@@ -79,7 +77,6 @@ parser.add_argument('--dataset_folder', default='../../dataset/',
 FLAGS = parser.parse_args()
 cfg.BATCH_NUM_QUERIES = FLAGS.batch_num_queries
 #cfg.EVAL_BATCH_SIZE = 12
-cfg.NUM_POINTS = 360
 cfg.TRAIN_POSITIVES_PER_QUERY = FLAGS.positives_per_query
 cfg.TRAIN_NEGATIVES_PER_QUERY = FLAGS.negatives_per_query
 cfg.MAX_EPOCH = 100
@@ -187,6 +184,7 @@ def train():
         checkpoint = torch.load(resume_filename)
         saved_state_dict = checkpoint['state_dict']
         starting_epoch = checkpoint['epoch']
+        #starting_epoch = 100
         TOTAL_ITERATIONS = starting_epoch * len(TRAINING_QUERIES)
 
         model.load_state_dict(saved_state_dict)
@@ -241,7 +239,7 @@ def train():
 
         #eval_recall, db_vec = evaluate.evaluate_model(model, True) #db_vec gives the evaluate nearest neighbours, folder* 2048* positves_dim
         #db_vec, DATABASE_SETS_SIZE = evaluate.evaluate_model(model, epoch, True, full_pickle=True)
-        _, _ = evaluate.evaluate_model(model, epoch, True, full_pickle=False)
+        _, _ = evaluate.evaluate_model(model, optimizer, epoch, True, full_pickle=False)
         #print("DATABASE_SETS_SIZE:"+str(DATABASE_SETS_SIZE))
         #assert(0)
         '''
@@ -376,6 +374,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINI
                 q_tuples.append(
                     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
                                     TRAINING_QUERIES, DB_QUERIES, file_sizes, hard_neg=[], other_neg=True))
+                
                 #print("q_tuples:"+str(q_tuples))
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
@@ -409,10 +408,11 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINI
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
             
-            if (q_tuples[j][3].shape[0] != cfg.NUM_POINTS):
+
+            if (q_tuples[j][3].shape[1] != cfg.NUM_POINTS):
                 no_other_neg = True
                 break
-
+            
         if(faulty_tuple):
             log_string('----' + str(i) + '-----')
             log_string('----' + 'FAULTY TUPLE' + '-----')
@@ -427,26 +427,42 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINI
         positives = []
         negatives = []
         other_neg = []
+
+        
         for k in range(len(q_tuples)):
             queries.append(q_tuples[k][0])
             positives.append(q_tuples[k][1])
             negatives.append(q_tuples[k][2])
             other_neg.append(q_tuples[k][3])
-     
+        '''
+        queries = np.expand_dims(q_tuples[0][0], axis=0)
+        positives = np.expand_dims(q_tuples[0][1], axis=0)
+        negatives = np.expand_dims(q_tuples[0][2], axis=0)
+        other_neg = np.expand_dims(q_tuples[0][3], axis=0)
+        '''
         queries = np.array(queries, dtype=np.float32)
-        queries = np.expand_dims(queries, axis=1)
+        #queries = np.expand_dims(queries, axis=1)
+        #print("queries:"+str(queries.shape))
+        #print("queries[0]:"+str(queries[0].shape))
         other_neg = np.array(other_neg, dtype=np.float32)
-        other_neg = np.expand_dims(other_neg, axis=1)
+        #other_neg = np.expand_dims(other_neg, axis=1)
         positives = np.array(positives, dtype=np.float32)
         negatives = np.array(negatives, dtype=np.float32)
-
+        
         log_string('----' + str(i) + '-----')
+        '''
+        print("queries.shape:"+str(queries.shape))
+        print("other_neg:"+str(other_neg.shape))
+        print("positives:"+str(positives.shape))
+        print("negatives:"+str(negatives.shape))
+        '''
         if (len(queries.shape) != 4):
             log_string('----' + 'FAULTY QUERY' + '-----')
             continue
-
+        
         model.train()
         optimizer.zero_grad()
+        
         
         output_queries, output_positives, output_negatives, output_other_neg = run_model(
             model, queries, positives, negatives, other_neg)
@@ -491,7 +507,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINI
 
 def get_feature_representation(filename, model):
     model.eval()
-    queries = load_pc_files([filename],True)
+    queries = load_mat_files([filename],True)
     queries = np.expand_dims(queries, axis=1)
     # if(BATCH_NUM_QUERIES-1>0):
     #    fake_queries=np.zeros((BATCH_NUM_QUERIES-1,1,NUM_POINTS,3))
@@ -538,7 +554,7 @@ def get_latent_vectors(model, dict_to_process):
         file_names = []
         for index in file_indices:
             file_names.append(dict_to_process[index]["query"])
-        queries = load_pc_files(file_names,True)
+        queries = load_mat_files(file_names,True)
 
         feed_tensor = torch.from_numpy(queries).float()
         feed_tensor = feed_tensor.unsqueeze(1)
@@ -558,7 +574,7 @@ def get_latent_vectors(model, dict_to_process):
     # handle edge case
     for q_index in range((len(train_file_idxs) // batch_num * batch_num), len(dict_to_process.keys())):
         index = train_file_idxs[q_index]
-        queries = load_pc_files([dict_to_process[index]["query"]],True)
+        queries = load_mat_files([dict_to_process[index]["query"]],True)
         queries = np.expand_dims(queries, axis=1)
 
         # if (BATCH_NUM_QUERIES - 1 > 0):
@@ -587,18 +603,51 @@ def get_latent_vectors(model, dict_to_process):
 
 
 def run_model(model, queries, positives, negatives, other_neg, require_grad=True):
-    queries_tensor = torch.from_numpy(queries).float()
+    
+    queries_tensor = torch.from_numpy(queries).float() # 1*1*256*3
     positives_tensor = torch.from_numpy(positives).float()
     negatives_tensor = torch.from_numpy(negatives).float()
     other_neg_tensor = torch.from_numpy(other_neg).float()
-  
+    '''
+    _,_,queries_num,_ = queries_tensor.shape
+    queries_tensor = queries_tensor.view((-1, 1, queries_num, 3)).requires_grad_(require_grad).to(device)
+
+    positives_tensors = []
+    negatives_tensors = []
+    for i in range(cfg.TRAIN_POSITIVES_PER_QUERY):
+        positive_num,_ = positives[0][i].shape
+        pos_ele = torch.from_numpy(positives[0][i]).float().unsqueeze(0).unsqueeze(0).view((-1, 1, positive_num, 3)).requires_grad_(require_grad).to(device)
+        positives_tensors.append(pos_ele)
+
+    
+    #positives_tensor = torch.from_numpy(positives).float()
+    for i in range(cfg.TRAIN_NEGATIVES_PER_QUERY):
+        negative_num,_ = negatives[0][i].shape
+        nega_ele = torch.from_numpy(negatives[0][i]).float().unsqueeze(0).unsqueeze(0).view((-1, 1, negative_num, 3)).requires_grad_(require_grad).to(device)
+        negatives_tensors.append(nega_ele)
+    #negatives_tensor = torch.from_numpy(negatives).float()
+    other_neg_tensor = torch.from_numpy(other_neg).float()
+    _,_,otherneg_num,_ = other_neg_tensor.shape
+    other_neg_tensor = other_neg_tensor.view((-1, 1, otherneg_num, 3)).requires_grad_(require_grad).to(device)
+    '''
+
     feed_tensor = torch.cat(
         (queries_tensor, positives_tensor, negatives_tensor, other_neg_tensor), 1)
     feed_tensor = feed_tensor.view((-1, 1, cfg.NUM_POINTS, 3))
     feed_tensor.requires_grad_(require_grad)
     feed_tensor = feed_tensor.to(device)
-    #print("feed_tensor:"+str(feed_tensor))
+    
     if require_grad:
+        '''
+        print("queries_tensor:"+str(queries_tensor.shape))
+        o1 = model(queries_tensor)
+        assert(0)
+        o2s = []
+        for i in range(cfg.TRAIN_POSITIVES_PER_QUERY):
+            o2s.append(model(positives_tensorsp[i]))
+        print("o1:"+str(o1.shape))
+        assert(0)
+        '''
         output = model(feed_tensor)
     else:
         with torch.no_grad():

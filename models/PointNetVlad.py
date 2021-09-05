@@ -329,20 +329,14 @@ class PointNetfeat(nn.Module):
 class PointNetfeatCNN(nn.Module):
     def __init__(self, num_points=256, global_feat=True, feature_transform=False, max_pool=True):
         super(PointNetfeatCNN, self).__init__()
-        self.stn = STN2d(num_points=num_points, k=2, use_bn=False)
-        self.feature_trans = STN2d(num_points=num_points, k=64, use_bn=False)
+        self.stn = STN3d(num_points=num_points, k=3, use_bn=False)
+        self.feature_trans = STN3d(num_points=num_points, k=64, use_bn=False)
         self.apply_feature_trans = feature_transform
-        self.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(3,1), stride=1, padding=(2,0),
-                                            bias=False, padding_mode='circular')
-        
-        self.conv2 = torch.nn.Conv2d(64, 64, kernel_size=(3,2), stride=1, padding=(2,1),
-                                                            bias=False, padding_mode='circular')
-        self.conv3 = torch.nn.Conv2d(64, 64, kernel_size=(3,1), stride=1, padding=(2,0),
-                                                            bias=False, padding_mode='circular')
-        self.conv4 = torch.nn.Conv2d(64, 128, kernel_size=(3,1), stride=1, padding=(2,0),
-                                                            bias=False, padding_mode='circular')
-        self.conv5 = torch.nn.Conv2d(128, 1024, kernel_size=(3,1), stride=1, padding=(2,0),
-                                                            bias=False, padding_mode='circular')
+        self.conv1 = torch.nn.Conv2d(1, 64, kernel_size=(1,3))
+        self.conv2 = torch.nn.Conv2d(64, 64, kernel_size=(1,1))
+        self.conv3 = torch.nn.Conv2d(64, 64, kernel_size=(1,1))
+        self.conv4 = torch.nn.Conv2d(64, 128, kernel_size=(1,1))
+        self.conv5 = torch.nn.Conv2d(128, 1024, kernel_size=(1,1))
         self.bn1 = nn.BatchNorm2d(64)
         self.bn2 = nn.BatchNorm2d(64)
         self.bn3 = nn.BatchNorm2d(64)
@@ -360,13 +354,12 @@ class PointNetfeatCNN(nn.Module):
             return ob
 
     def forward(self, x):
-        x = x[:,:,:,:2]
         batchsize = x.size()[0]
         threshold = batchsize//2
         x = self.process_data(x, low_th=-threshold, high_th=threshold)
         #trans = self.stn(x)
         #x = torch.matmul(torch.squeeze(x), trans)
-        x = x.view(batchsize, 1, -1, 2)
+        x = x.view(batchsize, 1, -1, 3)
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         pointfeat = x

@@ -141,14 +141,14 @@ def generate(data_index, definite_positives=None, inside=True):
         df_locations_lon.extend(list(df_locations[file_index,1]))
         df_locations_alt.extend(list(df_locations[file_index,2]))
 
-        all_files = list(sorted(os.listdir(os.path.join(pre_dir,folder,"velodyne_points","data"))))
+        all_files = list(sorted(os.listdir(os.path.join(pre_dir,folder,"velodyne_points","data2"))))
 
         for (indx, file_) in enumerate(all_files): 
             if indx in test_index:
-                df_files_test.append(os.path.join(pre_dir,folder,file_))
+                df_files_test.append(os.path.join(pre_dir,folder,"velodyne_points","data2",file_))
             else:
-                df_files_train.append(os.path.join(pre_dir,folder,file_))
-            df_files.append(os.path.join(pre_dir,folder,file_))
+                df_files_train.append(os.path.join(pre_dir,folder,"velodyne_points","data2",file_))
+            df_files.append(os.path.join(pre_dir,folder,"velodyne_points","data2",file_))
 
     #print("df_locations_tr_x:"+str(len(df_locations_tr_x)))
     #print("df_files_test:"+str(len(df_files_test)))
