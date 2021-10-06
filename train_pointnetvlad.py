@@ -28,8 +28,8 @@ from torch.backends import cudnn
 
 from multiprocessing import Pool
 
-#os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
+#os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
@@ -231,6 +231,7 @@ def train():
         # print("trusted_positives:"+str(trusted_positives))
         potential_positives = sio.loadmat("results/trusted_positives_folder/potential_positives_"+str(starting_epoch)+".mat")['data']
         potential_distributions = sio.loadmat("results/trusted_positives_folder/potential_distributions_"+str(starting_epoch)+".mat")['data']
+        starting_epoch = starting_epoch+1
     else:
         starting_epoch = 0
 
@@ -271,6 +272,7 @@ def train():
     for epoch in range(starting_epoch, cfg.MAX_EPOCH):
         print(epoch)
         print()
+        '''
         if epoch == 5:
             model = PNV.PointNetVlad(global_feat=True, feature_transform=True,
                              max_pool=False, output_dim=cfg.FEATURE_OUTPUT_DIM, num_points=cfg.NUM_POINTS)
@@ -286,6 +288,7 @@ def train():
             else:
                 optimizer = None
                 exit(0)
+        '''
         # print("potential_positives_:"+str(np.array(potential_positives)))
         # print("potential_distributions_:"+str(np.array(potential_distributions)))
         
@@ -610,6 +613,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINI
         TOTAL_ITERATIONS += cfg.BATCH_NUM_QUERIES
 
         # EVALLLL
+        '''
         if (epoch > 5 and i % (1400 // cfg.BATCH_NUM_QUERIES) == 29):
             TRAINING_LATENT_VECTORS = get_latent_vectors(
                 model, DB_QUERIES)
@@ -629,8 +633,8 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINI
             },
                 save_name)
             print("Model Saved As " + save_name)
-
-
+        '''
+         
 def get_feature_representation(filename, model):
     model.eval()
     queries = load_pc_files([filename],True)
