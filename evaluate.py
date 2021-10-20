@@ -162,7 +162,7 @@ def get_latent_vectors(model, dict_to_process):
             feed_tensor = torch.from_numpy(queries).float()
             feed_tensor = feed_tensor.unsqueeze(1)
             feed_tensor = feed_tensor.to(device)
-            out = model(feed_tensor)
+            out, rot_out = model(feed_tensor)
 
         out = out.detach().cpu().numpy()
         out = np.squeeze(out)
@@ -188,7 +188,7 @@ def get_latent_vectors(model, dict_to_process):
             feed_tensor = torch.from_numpy(queries).float()
             feed_tensor = feed_tensor.unsqueeze(1)
             feed_tensor = feed_tensor.to(device)
-            o1 = model(feed_tensor)
+            o1, rot_o1 = model(feed_tensor)
 
         output = o1.detach().cpu().numpy()
         output = np.squeeze(output)

@@ -10,6 +10,59 @@ import math
 import random
 from .resnet_mod import *
 
+from matplotlib import pyplot as plt
+import os
+
+def draw_diagram(pcs, rot_pcs, inside_flag=True, output_trusted_path = "./results/visualization_2"):
+    for count, pc in enumerate(pcs.squeeze()):
+        fig = plt.figure(figsize=(8, 8))
+        ax = fig.add_subplot(111)
+        ax.set_xlim([-2, 2])
+        ax.set_ylim([-2, 2])
+        pc = pc.cpu().detach().numpy()
+        ax.scatter(pc[:,0], pc[:,1])
+        if inside_flag:
+            plt.savefig(os.path.join(output_trusted_path, "pcl_"+str(count)+".jpg"))
+        else:
+            plt.savefig(os.path.join(output_trusted_path, "compare_pcl_"+str(count)+".jpg"))
+
+    for count, rot_pc in enumerate(rot_pcs.squeeze()):
+        fig = plt.figure(figsize=(8, 8))
+        ax = fig.add_subplot(111)
+        ax.set_xlim([-2, 2])
+        ax.set_ylim([-2, 2])
+        rot_pc = rot_pc.cpu().detach().numpy()
+        ax.scatter(rot_pc[:,0], rot_pc[:,1])
+        if inside_flag:
+            plt.savefig(os.path.join(output_trusted_path, "rot_pcl_"+str(count)+".jpg"))
+        else:
+            plt.savefig(os.path.join(output_trusted_path, "rot_compare_pcl_"+str(count)+".jpg"))
+
+def rotate_point_cloud_N3(batch_data):
+    """ Randomly rotate the point clouds to augument the dataset
+    rotation is per shape based along up direction
+    Input:
+    Nx3 array, original batch of point clouds
+    Return:
+    Nx3 array, rotated batch of point clouds
+    """
+    # rotated_data = torch.zeros(batch_data.shape, dtype=torch.float32, device=batch_data.device)
+    rotation_angle = (np.random.uniform()*2*np.pi) - np.pi
+    cosval = np.cos(rotation_angle)
+    sinval = np.sin(rotation_angle)
+    rotation_matrix = torch.tensor([[cosval, -sinval,0],
+                               [sinval, cosval,0],
+                               [0, 0,1]], dtype=torch.float32, device=batch_data.device)
+    
+    # rotation_matrix.requires_grad = True
+    # for k in range(batch_data.shape[0]):
+        #rotation_angle = np.random.uniform() * 2 * np.pi
+        #-90 to 90
+    rotated_data= torch.matmul(
+            batch_data, rotation_matrix).detach ()
+            
+    return rotated_data
+    
 class NetVLADLoupe(nn.Module):
     def __init__(self, feature_size, max_samples, cluster_size, output_dim,
                  gating=True, add_batch_norm=True, is_training=True):
@@ -360,12 +413,23 @@ class PointNetfeatCNN(nn.Module):
             return ob
 
     def forward(self, x):
+        rot_x = rotate_point_cloud_N3(x)[:,:,:,:2]
+        # print("rot_x:"+str(rot_x.shape))  
         x = x[:,:,:,:2]
+        # print("x:"+str(x.shape))
+
+        # draw_diagram(x, rot_x)
+        # assert(0)
+
         batchsize = x.size()[0]
         threshold = batchsize//2
         x = self.process_data(x, low_th=-threshold, high_th=threshold)
-        #trans = self.stn(x)
-        #x = torch.matmul(torch.squeeze(x), trans)
+        rot_x = self.process_data(rot_x, low_th=-threshold, high_th=threshold)
+        
+        '''
+        trans = self.stn(x)
+        x = torch.matmul(torch.squeeze(x), trans)
+        '''
         x = x.view(batchsize, 1, -1, 2)
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
@@ -381,19 +445,58 @@ class PointNetfeatCNN(nn.Module):
             x = x.view(batchsize, 64, -1, 1)
         x = F.relu(self.bn3(self.conv3(x)))
         x = F.relu(self.bn4(self.conv4(x)))
-        
+
         x = self.bn5(self.conv5(x))
+
+        '----------------------------------'
+
+        rot_x = rot_x.view(batchsize, 1, -1, 2)
+        rot_x = F.relu(self.bn1(self.conv1(rot_x)))
+        rot_x = F.relu(self.bn2(self.conv2(rot_x)))
+        pointfeat_rot_x = rot_x
+        
+        if self.apply_feature_trans:
+            f_trans_rot = self.feature_trans(rot_x)
+            rot_x = torch.squeeze(rot_x)
+            if batchsize == 1:
+                rot_x = torch.unsqueeze(rot_x, 0)
+            rot_x = torch.matmul(rot_x.transpose(1, 2), f_trans_rot)
+            rot_x = rot_x.transpose(1, 2).contiguous()
+            rot_x = rot_x.view(batchsize, 64, -1, 1)
+        rot_x = F.relu(self.bn3(self.conv3(rot_x)))
+        rot_x = F.relu(self.bn4(self.conv4(rot_x)))
+        
+        rot_x = self.bn5(self.conv5(rot_x))
+
+        '----------------------------------'
+
         if not self.max_pool:
-            return x
+            return x, rot_x
         else:
             x = self.mp1(x)
             x = x.view(-1, 1024)
+
+            rot_x = self.mp1(rot_x)
+            rot_x = rot_x.view(-1, 1024)
             
             if self.global_feat:
-                return x, trans
+                return x, trans, rot_x, trans_rot
             else:
                 x = x.view(-1, 1024, 1).repeat(1, 1, self.num_points)
-                return torch.cat([x, pointfeat], 1), trans
+                rot_x = rot_x.view(-1, 1024, 1).repeat(1, 1, self.num_points)
+                return torch.cat([x, pointfeat], 1), trans, torch.cat([rot_x, pointfeat_rot], 1), trans_rot
+
+        # if not self.max_pool:
+        #     return x
+        # else:
+        #     x = self.mp1(x)
+        #     x = x.view(-1, 1024)
+            
+        #     if self.global_feat:
+        #         return x, trans
+        #     else:
+        #         x = x.view(-1, 1024, 1).repeat(1, 1, self.num_points)
+        #         return torch.cat([x, pointfeat], 1), trans
 
 class PointNetVlad(nn.Module):
     def __init__(self, num_points=256, global_feat=True, feature_transform=False, max_pool=True, output_dim=1024):
@@ -410,9 +513,11 @@ class PointNetVlad(nn.Module):
 
     def forward(self, x):
         #x = self.point_net(x)
-        x = self.obs_feat_extractor(x)
+        x, rot_x = self.obs_feat_extractor(x)
         x = self.net_vlad(x)
-        return x
+        rot_x = self.net_vlad(rot_x)
+
+        return x, rot_x
 
 
 if __name__ == '__main__':

@@ -44,7 +44,7 @@ parser.add_argument('--positives_per_query', type=int, default=2,
                     help='Number of potential positives in each training tuple [default: 2]')
 parser.add_argument('--negatives_per_query', type=int, default=18,
                     help='Number of definite negatives in each training tuple [default: 18]')
-parser.add_argument('--max_epoch', type=int, default=20,
+parser.add_argument('--max_epoch', type=int, default=100,
                     help='Epoch to run [default: 100]')
 parser.add_argument('--batch_num_queries', type=int, default=2,
                     help='Batch Size during training [default: 2]')
@@ -62,7 +62,7 @@ parser.add_argument('--margin_1', type=float, default=0.5,
                     help='Margin for hinge loss [default: 0.5]')
 parser.add_argument('--margin_2', type=float, default=0.2,
                     help='Margin for hinge loss [default: 0.2]')
-parser.add_argument('--loss_function', default='quadruplet', choices=[
+parser.add_argument('--loss_function', default='quadruplet_w_rotation', choices=[
                     'triplet', 'quadruplet'], help='triplet or quadruplet [default: quadruplet]')
 parser.add_argument('--loss_not_lazy', action='store_false',
                     help='If present, do not use lazy variant of loss')
@@ -169,6 +169,8 @@ def train():
     #loss = lazy_quadruplet_loss(q_vec, pos_vecs, neg_vecs, other_neg_vec, MARGIN1, MARGIN2)
     if cfg.LOSS_FUNCTION == 'quadruplet':
         loss_function = PNV_loss.quadruplet_loss
+    elif cfg.LOSS_FUNCTION == 'quadruplet_w_rotation':
+        loss_function = PNV_loss.quadruplet_rotate_loss
     else:
         loss_function = PNV_loss.triplet_loss_wrapper
     learning_rate = get_learning_rate(0)
@@ -197,7 +199,7 @@ def train():
         checkpoint = torch.load(resume_filename)
         saved_state_dict = checkpoint['state_dict']
         starting_epoch = checkpoint['epoch']
-
+        starting_epoch = starting_epoch +1
         TRAIN_FILE = 'generating_queries/train_pickle/training_queries_baseline_'+str(starting_epoch)+'.pickle'
         TEST_FILE = 'generating_queries/train_pickle/test_queries_baseline_'+str(starting_epoch)+'.pickle'
         DB_FILE = 'generating_queries/train_pickle/db_queries_baseline_'+str(starting_epoch)+'.pickle'
@@ -231,7 +233,6 @@ def train():
         # print("trusted_positives:"+str(trusted_positives))
         potential_positives = sio.loadmat("results/trusted_positives_folder/potential_positives_"+str(starting_epoch)+".mat")['data']
         potential_distributions = sio.loadmat("results/trusted_positives_folder/potential_distributions_"+str(starting_epoch)+".mat")['data']
-        starting_epoch = starting_epoch+1
     else:
         starting_epoch = 0
 
@@ -299,6 +300,7 @@ def train():
         
         # print("trusted_positives:"+str(trusted_positives[0][0]))
         # assert(0)
+        # if not os.path.exists('generating_queries/train_pickle/training_queries_baseline_'+str(epoch)+'.pickle'):
         generate_dataset.generate(epoch, definite_positives=trusted_positives, inside=False)  
         TRAIN_FILE = 'generating_queries/train_pickle/training_queries_baseline_'+str(epoch)+'.pickle'
         TEST_FILE = 'generating_queries/train_pickle/test_queries_baseline_'+str(epoch)+'.pickle'
@@ -323,7 +325,7 @@ def train():
         eval_recall, _ = evaluate.evaluate_model(model, optimizer, epoch, True, full_pickle=False)
         db_vec = np.array(db_vec)
         db_vec_all = db_vec.reshape(-1,db_vec.shape[-1])
-        nbrs = NearestNeighbors(n_neighbors=cfg.EVAL_NEAREST, algorithm='ball_tree').fit(db_vec_all)
+        nbrs = NearestNeighbors(n_neighbors=cfg.INIT_TRUST, algorithm='ball_tree').fit(db_vec_all)
         distance, indice = nbrs.kneighbors(db_vec_all)
         weight = np.exp(-distance*10)
         indice = indice.reshape(int(indice.shape[0]/2048),2048,indice.shape[1]).tolist()
@@ -593,8 +595,9 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINI
         model.train()
         optimizer.zero_grad()
         
-        output_queries, output_positives, output_negatives, output_other_neg = run_model(
+        output_queries, output_positives, output_negatives, output_other_neg, rotate_output_queries, rotate_output_positives, rotate_output_negatives, rotate_output_other_neg = run_model(
             model, queries, positives, negatives, other_neg)
+        
         #print("output_queries:"+str(output_queries))
         #print("output_positives:"+str(output_positives))
         #print("output_negatives:"+str(output_negatives))
@@ -604,7 +607,8 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINI
         #print("other_neg:"+str(other_neg))
         #print("queries:"+str(queries))
 
-        loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, cfg.MARGIN_1, cfg.MARGIN_2, use_min=cfg.TRIPLET_USE_BEST_POSITIVES, lazy=cfg.LOSS_LAZY, ignore_zero_loss=cfg.LOSS_IGNORE_ZERO_BATCH)
+        #loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, cfg.MARGIN_1, cfg.MARGIN_2, use_min=cfg.TRIPLET_USE_BEST_POSITIVES, lazy=cfg.LOSS_LAZY, ignore_zero_loss=cfg.LOSS_IGNORE_ZERO_BATCH)
+        loss = loss_function(output_queries, output_positives, output_negatives, output_other_neg, rotate_output_queries, rotate_output_positives, rotate_output_negatives, rotate_output_other_neg, cfg.MARGIN_1, cfg.MARGIN_2, use_min=cfg.TRIPLET_USE_BEST_POSITIVES, lazy=cfg.LOSS_LAZY, ignore_zero_loss=cfg.LOSS_IGNORE_ZERO_BATCH)
         loss.backward()
         optimizer.step()
 
@@ -743,18 +747,19 @@ def run_model(model, queries, positives, negatives, other_neg, require_grad=True
     feed_tensor = feed_tensor.view((-1, 1, cfg.NUM_POINTS, 3))
     feed_tensor.requires_grad_(require_grad)
     feed_tensor = feed_tensor.to(device)
-    #print("feed_tensor:"+str(feed_tensor))
     if require_grad:
-        output = model(feed_tensor)
+        output,rotate_output = model(feed_tensor)
     else:
         with torch.no_grad():
-            output = model(feed_tensor)
+            output,rotate_output = model(feed_tensor)
     #print("output:"+str(output))
     output = output.view(cfg.BATCH_NUM_QUERIES, -1, cfg.FEATURE_OUTPUT_DIM)
+    rotate_output = rotate_output.view(cfg.BATCH_NUM_QUERIES, -1, cfg.FEATURE_OUTPUT_DIM)
     o1, o2, o3, o4 = torch.split(
-        output, [1, 30*cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY, 1], dim=1)
-
-    return o1, o2, o3, o4
+        output, [1, 2*cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY, 1], dim=1)
+    ro1, ro2, ro3, ro4 = torch.split(
+        rotate_output, [1, 2*cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY, 1], dim=1)
+    return o1, o2, o3, o4, ro1, ro2, ro3, ro4
 
 
 if __name__ == "__main__":

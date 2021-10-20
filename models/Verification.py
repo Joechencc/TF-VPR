@@ -697,8 +697,8 @@ def Compute_positive(flag, db_vec, index, potential_positives, potential_distrib
         for index2 in range(db_vec.shape[1]):
             #print("indice[index][index2]:"+str(indice[index][index2]))
             #print("weight[index][index2]:"+str(weight[index][index2]))
-            if (index == 1) and (index2 == 2034):
-                print("pre_trusted_positive:"+str(pre_trusted_positive))
+            #if (index == 1) and (index2 == 2034):
+            #    print("pre_trusted_positive:"+str(pre_trusted_positive))
             pre_trusted_positive = np.array(indice[index][index2])[np.argsort(weight[index][index2])[::-1][:(cfg.INIT_TRUST)]]
             pre_trusted_positive = np.setdiff1d(pre_trusted_positive,index2)
             '''
