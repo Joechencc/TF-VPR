@@ -42,8 +42,8 @@ parser.add_argument('--positives_per_query', type=int, default=2,
                     help='Number of potential positives in each training tuple [default: 2]')
 parser.add_argument('--negatives_per_query', type=int, default=18,
                     help='Number of definite negatives in each training tuple [default: 18]')
-parser.add_argument('--max_epoch', type=int, default=20,
-                    help='Epoch to run [default: 20]')
+parser.add_argument('--max_epoch', type=int, default=100,
+                    help='Epoch to run [default: 100]')
 parser.add_argument('--batch_num_queries', type=int, default=2,
                     help='Batch Size during training [default: 2]')
 parser.add_argument('--learning_rate', type=float, default=0.000005,
@@ -96,6 +96,7 @@ cfg.LOSS_IGNORE_ZERO_BATCH = FLAGS.loss_ignore_zero_batch
 
 cfg.TRAIN_FILE = 'generating_queries/training_queries_baseline.pickle'
 cfg.TEST_FILE = 'generating_queries/test_queries_baseline.pickle'
+cfg.DB_FILE = 'generating_queries/db_queries_baseline.pickle'
 
 cfg.LOG_DIR = FLAGS.log_dir
 if not os.path.exists(cfg.LOG_DIR):
@@ -111,8 +112,11 @@ cfg.DATASET_FOLDER = FLAGS.dataset_folder
 # Load dictionary of training queries
 TRAINING_QUERIES = get_queries_dict(cfg.TRAIN_FILE)
 TEST_QUERIES = get_queries_dict(cfg.TEST_FILE)
-TRAINING_QUERIES_init = get_queries_dict(cfg.TRAIN_FILE)
-TEST_QUERIES_init = get_queries_dict(cfg.TEST_FILE)
+DB_QUERIES = get_queries_dict(cfg.DB_FILE)
+
+
+# TRAINING_QUERIES_init = get_queries_dict(cfg.TRAIN_FILE)
+# TEST_QUERIES_init = get_queries_dict(cfg.TEST_FILE)
 
 cfg.BN_INIT_DECAY = 0.5
 cfg.BN_DECAY_DECAY_RATE = 0.5
@@ -149,7 +153,7 @@ def get_learning_rate(epoch):
 
 def train():
     global HARD_NEGATIVES, TOTAL_ITERATIONS
-    global TRAINING_QUERIES, TEST_QUERIES
+    global TRAINING_QUERIES, TEST_QUERIES, DB_QUERIES
     bn_decay = get_bn_decay(0)
     #tf.summary.scalar('bn_decay', bn_decay)
 
@@ -202,28 +206,22 @@ def train():
         print(epoch)
         print()
         #generate_dataset.generate()
-        TRAIN_FILE = 'generating_queries/train_pickle/training_queries_baseline_'+str(data_index)+'.pickle'
-        TEST_FILE = 'generating_queries/train_pickle/test_queries_baseline_'+str(data_index)+'.pickle'
-        data_index = data_index+1
-        # Load dictionary of training queries
-        TRAINING_QUERIES = get_queries_dict(TRAIN_FILE)
-        TEST_QUERIES = get_queries_dict(TEST_FILE)
 
         log_string('**** EPOCH %03d ****' % (epoch))
         sys.stdout.flush()
 
-        train_one_epoch(model, optimizer, train_writer, loss_function, epoch)
+        train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINING_QUERIES, TEST_QUERIES, DB_QUERIES)
 
         log_string('EVALUATING...')
         cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results_' + str(epoch) + '.txt'
 
-        eval_recall = evaluate.evaluate_model(model, epoch, True)
-        log_string('EVAL RECALL: %s' % str(eval_recall))
+        eval_recall_1, eval_recall_5, eval_recall_10 = evaluate.evaluate_model(model,optimizer,epoch,True,False)
+        log_string('EVAL RECALL_1: %s' % str(eval_recall_1))
+        log_string('EVAL RECALL_5: %s' % str(eval_recall_5))
+        log_string('EVAL RECALL_10: %s' % str(eval_recall_10))
 
-        train_writer.add_scalar("Val Recall", eval_recall, epoch)
 
-
-def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
+def train_one_epoch(model, optimizer, train_writer, loss_function, epoch, TRAINING_QUERIES, TEST_QUERIES, DB_QUERIES):
     global HARD_NEGATIVES
     global TRAINING_LATENT_VECTORS, TOTAL_ITERATIONS
 
@@ -255,7 +253,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
             if (len(TRAINING_LATENT_VECTORS) == 0):
                 q_tuples.append(
                     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
-                                    TRAINING_QUERIES, hard_neg=[], other_neg=True))
+                                    DB_QUERIES, hard_neg=[], other_neg=True))
                 #print("q_tuples:"+str(q_tuples))
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_neg=[], other_neg=True))
@@ -270,7 +268,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
                     query, negatives, num_to_take)
                 q_tuples.append(
                     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
-                                    TRAINING_QUERIES, hard_negs, other_neg=True))
+                                    DB_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
             else:
@@ -285,7 +283,7 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
                     HARD_NEGATIVES[batch_keys[j]], hard_negs))
                 q_tuples.append(
                     get_query_tuple(TRAINING_QUERIES[batch_keys[j]], cfg.TRAIN_POSITIVES_PER_QUERY, cfg.TRAIN_NEGATIVES_PER_QUERY,
-                                    TRAINING_QUERIES, hard_negs, other_neg=True))
+                                    DB_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_rotated_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
                 # q_tuples.append(get_jittered_tuple(TRAINING_QUERIES[batch_keys[j]],POSITIVES_PER_QUERY,NEGATIVES_PER_QUERY, TRAINING_QUERIES, hard_negs, other_neg=True))
             
@@ -348,25 +346,25 @@ def train_one_epoch(model, optimizer, train_writer, loss_function, epoch):
         TOTAL_ITERATIONS += cfg.BATCH_NUM_QUERIES
 
         # EVALLLL
-        if (epoch > 5 and i % (1400 // cfg.BATCH_NUM_QUERIES) == 29):
-            TRAINING_LATENT_VECTORS = get_latent_vectors(
-                model, TRAINING_QUERIES)
-            print("Updated cached feature vectors")
+        # if (epoch > 5 and i % (1400 // cfg.BATCH_NUM_QUERIES) == 29):
+        #     TRAINING_LATENT_VECTORS = get_latent_vectors(
+        #         model, TRAINING_QUERIES)
+        #     print("Updated cached feature vectors")
 
-        if (i % (6000 // cfg.BATCH_NUM_QUERIES) == 101):
-            if isinstance(model, nn.DataParallel):
-                model_to_save = model.module
-            else:
-                model_to_save = model
-            save_name = cfg.LOG_DIR + cfg.MODEL_FILENAME
-            torch.save({
-                'epoch': epoch,
-                'iter': TOTAL_ITERATIONS,
-                'state_dict': model_to_save.state_dict(),
-                'optimizer': optimizer.state_dict(),
-            },
-                save_name)
-            print("Model Saved As " + save_name)
+        # if (i % (6000 // cfg.BATCH_NUM_QUERIES) == 101):
+        #     if isinstance(model, nn.DataParallel):
+        #         model_to_save = model.module
+        #     else:
+        #         model_to_save = model
+        #     save_name = cfg.LOG_DIR + cfg.MODEL_FILENAME
+        #     torch.save({
+        #         'epoch': epoch,
+        #         'iter': TOTAL_ITERATIONS,
+        #         'state_dict': model_to_save.state_dict(),
+        #         'optimizer': optimizer.state_dict(),
+        #     },
+        #         save_name)
+        #     print("Model Saved As " + save_name)
 
 
 def get_feature_representation(filename, model):

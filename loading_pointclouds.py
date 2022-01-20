@@ -97,7 +97,8 @@ def get_query_tuple(dict_value, num_pos, num_neg, QUERY_DICT, hard_neg=[], other
     pos_files = []
 
     for i in range(num_pos):
-        pos_files.append(QUERY_DICT[dict_value["positives"][i]]["query"])
+        pos_files.append(dict_value["query"])
+        #pos_files.append(QUERY_DICT[dict_value["positives"][i]]["query"])
     #positives= load_pc_files(dict_value["positives"][0:num_pos])
     positives = load_pc_files(pos_files,full_path=True)
     '''
