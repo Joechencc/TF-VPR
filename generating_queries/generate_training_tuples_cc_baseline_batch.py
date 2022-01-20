@@ -15,16 +15,6 @@ import torch
 
 #####For training and test data split#####
 
-def check_in_test_set(northing, easting, points, x_width, y_width):
-    in_test_set = False
-    for point in points:
-        if(point[0]-x_width < northing and northing < point[0]+x_width and point[1]-y_width < easting and easting < point[1]+y_width):
-            in_test_set = True
-            break
-    return in_test_set
-##########################################
-
-
 def construct_query_dict(df_files, df_indice, filename):
     queries = {}
     
@@ -44,29 +34,36 @@ def construct_query_dict(df_files, df_indice, filename):
 
 
 def construct_dict(df_files, df_indices, filename, folder_size, folder_num, all_folders, pre_dir, k_nearest, k_furthest, definite_positives=None):
+    '''
     pos_index_range = list(range(-k_nearest//2, (k_nearest//2)+1))
     mid_index_range = list(range(-k_nearest, (k_nearest)+1))
     
     replace_counts = 0
-    
+    '''
     queries = {}
     for num in range(folder_num):
+        '''
         folder = os.path.join(pre_dir,all_folders[num])
         gt_mat = os.path.join(folder, 'gt_pose.mat')
         df_locations = sio.loadmat(gt_mat)
         df_locations = df_locations['pose']
         df_locations = torch.tensor(df_locations, dtype = torch.float).cpu()
-        
+        '''
         for index in range(len(df_indices)//folder_num):
             df_indice = df_indices[num * (len(df_indices)//folder_num) + index]
             positive_l = []
-            negative_l = list(range(folder_size))
+            negative_l = list(range(num*folder_size,(num+1)*folder_size,1))
+            '''
             for index_pos in pos_index_range:
                 if (index_pos + df_indice >= 0) and (index_pos + df_indice <= folder_size -1):
-                    positive_l.append(index_pos + df_indice)
+                    positive_l.append(index_pos + df_indice+folder_size*num)
             for index_pos in mid_index_range:
                 if (index_pos + df_indice >= 0) and (index_pos + df_indice <= folder_size -1):
-                    negative_l.remove(index_pos + df_indice)
+                    negative_l.remove(index_pos + df_indice+folder_size*num)
+            '''
+            positive_l.append(df_indice+num*folder_size)
+            positive_l.append(df_indice+num*folder_size)
+            negative_l.remove(df_indice+num*folder_size)
             if definite_positives is not None:
                 # print("num:"+str(num))
                 # print("df_indice:"+str(df_indice))
@@ -84,12 +81,9 @@ def construct_dict(df_files, df_indices, filename, folder_size, folder_num, all_
                 # print("np.array([]);"+str(np.array([]).ndim))
                 # print("definite_positives[num][df_indice]:"+str(np.array(definite_positives[num][df_indice]).shape))
                 positive_l.extend(extend_element)
+                positive_l = list(set(positive_l))
                 # print("positive_l:"+str(positive_l))
                 negative_l = [i for i in negative_l if i not in extend_element]
-            
-            # print("positive_l:"+str(((positive_l))))
-            # assert(0)
-            positive_l = list(set(positive_l))
             # print("positive_l:"+str((positive_l)))
             '''
             negative_l_sampled = random.sample(negative_l, k=k_furthest)
@@ -103,10 +97,10 @@ def construct_dict(df_files, df_indices, filename, folder_size, folder_num, all_
             '''
             queries[num * (len(df_indices)//folder_num) + index] = {"query":df_files[num * (len(df_indices)//folder_num) + index],
                           "positives":positive_l,"negatives":negative_l}
+    
     #print("replace_counts:"+str(replace_counts))        
-    #print("queries:"+str(queries[0]))
     #print("queries:"+str(queries[0][0]))
-
+    
     with open(filename, 'wb') as handle:
         pickle.dump(queries, handle, protocol=pickle.HIGHEST_PROTOCOL)
 

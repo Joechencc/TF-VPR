@@ -19,7 +19,7 @@ runs_folder = "dm_data"
 filename = "gt_pose.mat"
 pointcloud_fols = "/pointcloud_20m_10overlap/"
 
-evaluate_all = True
+evaluate_all = False
 print("cfg.DATASET_FOLDER:"+str(cfg.DATASET_FOLDER))
 
 cc_dir = "/home/cc/"
@@ -67,14 +67,14 @@ def construct_query_dict(df_centroids, df_database, folder_num,  filename_train,
     for folder in range(folder_num):
         queries = {}
         for i in range(len(df_centroids)//folder_num):
-            temp_indx = folder*len(df_centroids)//folder_num + i
+            temp_indx = folder*(len(df_centroids)//folder_num) + i
             query = df_centroids.iloc[temp_indx]["file"]
             #print("folder:"+str(folder))
             #print("query:"+str(query))
             queries[len(queries.keys())] = {"query":query,
                 "x":float(df_centroids.iloc[temp_indx]['x']),"y":float(df_centroids.iloc[temp_indx]['y'])}
         queries_sets.append(queries)
-        test_tree = KDTree(df_centroids[['x','y']])
+        test_tree = KDTree(df_centroids[folder*10:(folder+1)*10][['x','y']])
         test_trees.append(test_tree)
 
     for folder in range(folder_num):
@@ -84,8 +84,9 @@ def construct_query_dict(df_centroids, df_database, folder_num,  filename_train,
             data = df_database.iloc[temp_indx]["file"]
             dataset[len(dataset.keys())] = {"query":data,
                      "x":float(df_database.iloc[temp_indx]['x']),"y":float(df_database.iloc[temp_indx]['y'])}
+        
         database_sets.append(dataset)
-        database_tree = KDTree(df_database[['x','y']])
+        database_tree = KDTree(df_database[folder*2048:(folder+1)*2048][['x','y']])
         database_trees.append(database_tree)
 
     if test:
@@ -98,7 +99,6 @@ def construct_query_dict(df_centroids, df_database, folder_num,  filename_train,
                     coor = np.array(
                         [[queries_sets[j][key]["x"],queries_sets[j][key]["y"]]])
                     index = tree.query_radius(coor, r=25)
-                    #print("index:"+str(index))
                     # indices of the positive matches in database i of each query (key) in test set j
                     queries_sets[j][key][i] = index[0].tolist()
     
@@ -125,7 +125,7 @@ for folder in folders:
     df_locations = torch.tensor(df_locations, dtype = torch.float).cpu()
 
     #2038 Training 10 testing
-    test_index = random.choices(range(len(df_locations)), k=10)
+    test_index = list(sorted(random.choices(range(len(df_locations)), k=10)))
     train_index = list(range(df_locations.shape[0]))
     #for i in test_index:
     #    train_index.pop(i)
@@ -156,8 +156,6 @@ print("Number of training submaps: "+str(len(df_train['file'])))
 print("Number of non-disjoint test submaps: "+str(len(df_test['file'])))
 
 print("df_train:"+str(len(df_train)))
-
-
 
 #construct_query_dict(df_train,len(folders),"evaluation_database.pickle",False)
 if not evaluate_all:
