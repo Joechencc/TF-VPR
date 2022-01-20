@@ -48,13 +48,11 @@ def triplet_loss_wrapper(q_vec, pos_vecs, neg_vecs, other_neg, m1, m2, use_min=F
 
 def quadruplet_loss(q_vec, pos_vecs, neg_vecs, other_neg, m1, m2, use_min=False, lazy=False, ignore_zero_loss=False):
     min_pos, max_pos = best_pos_distance(q_vec, pos_vecs)
-
     # PointNetVLAD official code use min_pos, but i think max_pos should be used
     if use_min:
         positive = min_pos
     else:
         positive = max_pos
-
     num_neg = neg_vecs.shape[1]
     batch = q_vec.shape[0]
     query_copies = q_vec.repeat(1, int(num_neg), 1)
@@ -67,13 +65,14 @@ def quadruplet_loss(q_vec, pos_vecs, neg_vecs, other_neg, m1, m2, use_min=False,
         triplet_loss = loss.max(1)[0]
     else:
         triplet_loss = loss.sum(1)
+    
     if ignore_zero_loss:
         hard_triplets = torch.gt(triplet_loss, 1e-16).float()
         num_hard_triplets = torch.sum(hard_triplets)
         triplet_loss = triplet_loss.sum() / (num_hard_triplets + 1e-16)
     else:
         triplet_loss = triplet_loss.mean()
-
+    
     other_neg_copies = other_neg.repeat(1, int(num_neg), 1)
     second_loss = m2 + positive - ((neg_vecs - other_neg_copies) ** 2).sum(2)
     second_loss = second_loss.clamp(min=0.0)
@@ -90,4 +89,23 @@ def quadruplet_loss(q_vec, pos_vecs, neg_vecs, other_neg, m1, m2, use_min=False,
         second_loss = second_loss.mean()
 
     total_loss = triplet_loss + second_loss
+    return total_loss
+
+def rotation_loss(q_vec, rotate_q_vec):
+    diff = ((q_vec - rotate_q_vec) ** 2).sum(2)
+    max_pos, _ = diff.max(1)
+    # print("max_pos:"+str(max_pos))
+    loss = max_pos.mean()
+    return loss
+
+
+def quadruplet_rotate_loss(q_vec, pos_vecs, neg_vecs, other_neg, rot_q_vec, rot_pos_vecs, rot_neg_vecs, rot_other_neg, m1, m2, use_min=False, lazy=False, ignore_zero_loss=False):
+    quad_loss = quadruplet_loss(q_vec, pos_vecs, neg_vecs, other_neg, m1, m2, use_min=use_min, lazy=lazy, ignore_zero_loss=ignore_zero_loss)
+    # print("quad_loss:"+str(quad_loss))
+    q_ = torch.cat((q_vec, pos_vecs, neg_vecs, other_neg), 1)
+    rot_q_ = torch.cat((rot_q_vec, rot_pos_vecs, rot_neg_vecs, rot_other_neg), 1)
+    rot_loss = rotation_loss(q_, rot_q_)
+    # print("rot_loss:"+str(rot_loss))
+    total_loss = quad_loss + rot_loss
+    # print("total_loss:"+str(total_loss))
     return total_loss

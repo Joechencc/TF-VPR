@@ -30,14 +30,15 @@ BN_DECAY_CLIP = 0.99
 RESUME = False
 ROT_NUM = 8
 EVAL_NEAREST = 16
-INIT_TRUST = 32
+INIT_TRUST = 24
 INIT_TRUST_SCALAR = 1
 
 TRAIN_FILE = 'generating_queries/training_queries_baseline.pickle'
 TEST_FILE = 'generating_queries/test_queries_baseline.pickle'
 
 # LOSS
-LOSS_FUNCTION = 'quadruplet'
+#LOSS_FUNCTION = 'quadruplet'
+LOSS_FUNCTION = 'quadruplet_w_rotation'
 LOSS_LAZY = True
 TRIPLET_USE_BEST_POSITIVES = False
 LOSS_IGNORE_ZERO_BATCH = False

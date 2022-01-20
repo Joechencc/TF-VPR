@@ -5,6 +5,7 @@ import random
 import config as cfg
 import open3d as o3d
 from open3d import read_point_cloud
+from matplotlib import pyplot as plt
 
 def get_queries_dict(filename):
     # key:{'query':file,'positives':[files],'negatives:[files], 'neighbors':[keys]}
@@ -51,6 +52,17 @@ def load_pc_files(filenames,full_path):
     pcs = np.array(pcs)
     return pcs
 
+def save_fig(pc, i_file_num, inside_flag=True, output_trusted_path = "/home/cc/2_Unsupervised-PointNetVlad_aug_devel_2/results/visualization_2/"):
+    fig = plt.figure(figsize=(8, 8))
+    ax = fig.add_subplot(111)
+    ax.set_xlim([-2, 2])
+    ax.set_ylim([-2, 2])
+    ax.scatter(pc[:,0], pc[:,1])
+    if inside_flag:
+        plt.savefig(os.path.join(output_trusted_path, "pcl_"+str(i_file_num)+".jpg"))
+    else:
+        plt.savefig(os.path.join(output_trusted_path, "compare_pcl_"+str(i_file_num)+".jpg"))
+
 def load_pos_neg_pc_files(filenames,full_path):
     pcs = []
     for filename in filenames:
@@ -59,8 +71,11 @@ def load_pos_neg_pc_files(filenames,full_path):
         if(pc.shape[0] != 256):
             continue
         
-        for i in range(30):
-            pcs.append(rotate_point_cloud_N3(pc))
+        for i in range(2):
+            #save_fig(pc,i,inside_flag=True)
+            rotated_pcl = rotate_point_cloud_N3(pc)
+            #save_fig(rotated_pcl,i,inside_flag=False)
+            pcs.append(rotated_pcl)
     
     pcs = np.array(pcs)
     return pcs
