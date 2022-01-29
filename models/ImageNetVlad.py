@@ -10,6 +10,8 @@ import math
 import torchvision.models as models
 import random
 
+"""
+# This function is not used in baseline_RGB
 def rotate_images(image, save_image = False):
     dim_2 = image.shape[2]
     cut_index = random.randint(0, dim_2-1)
@@ -21,32 +23,27 @@ def rotate_images(image, save_image = False):
     image =  image[:, :, new_list, :,:]
     if save_image:
         cv2.imwrite(os.path.join('./results/visualization_2/',"after_rotate.png"), image)
-    
     return image
-
+"""
 class NetVLAD_Image(nn.Module):
     """NetVLAD layer implementation"""
-    def __init__(self, num_clusters=64, dim=128, 
+    def __init__(self, num_clusters=64, dim=128,
                 normalize_input=True, vladv2=False):
-            
+
         """
         Args:
         num_clusters : int
             The number of clusters
-        
         dim : int
              Dimension of descriptors
-        
         alpha : float
             Parameter of initialization. Larger value is harder assignment.
-        
         normalize_input : bool
             If true, descriptor-wise L2 normalization is applied to input.
-        
         vladv2 : bool
             If true, use vladv2 otherwise use vladv1
         """
-        
+
         super(NetVLAD_Image, self).__init__()
         self.num_clusters = num_clusters
         self.dim = dim
@@ -55,16 +52,16 @@ class NetVLAD_Image(nn.Module):
         self.normalize_input = normalize_input
         self.conv = nn.Conv2d(dim, num_clusters, kernel_size=(1, 1), bias=vladv2)
         self.centroids = nn.Parameter(torch.rand(num_clusters, dim))
-    
+
     def init_params(self, clsts, traindescs):
-        
+
         #TODO replace numpy ops with pytorch ops
         if self.vladv2 == False:
             clstsAssign = clsts / np.linalg.norm(clsts, axis=1, keepdims=True)
             dots = np.dot(clstsAssign, traindescs.T)
             dots.sort(0)
             dots = dots[::-1, :] # sort, descending
-            
+
             self.alpha = (-np.log(0.01) / np.mean(dots[0,:] - dots[1,:])).item()
             self.centroids = nn.Parameter(torch.from_numpy(clsts))
             self.conv.weight = nn.Parameter(torch.from_numpy(self.alpha*clstsAssign).unsqueeze(2).unsqueeze(3))
@@ -82,31 +79,31 @@ class NetVLAD_Image(nn.Module):
             self.conv.weight = nn.Parameter(
                     (2.0 * self.alpha * self.centroids).unsqueeze(-1).unsqueeze(-1)
             )
-            
+
             self.conv.bias = nn.Parameter(
-                    - self.alpha * self.centroids.norm(dim=1)        
+                    - self.alpha * self.centroids.norm(dim=1)
             )
 
-    def forward(self, x):    
+    def forward(self, x):
         N, C = x.shape[:2]
 
         if self.normalize_input:
             x = F.normalize(x, p=2, dim=1)  # across descriptor dim
-        
+
         # soft-assignment
         soft_assign = self.conv(x).view(N, self.num_clusters, -1)
         soft_assign = F.softmax(soft_assign, dim=1)
         x_flatten = x.view(N, C, -1)
         # calculate residuals to each clusters
         vlad = torch.zeros([N, self.num_clusters, C], dtype=x.dtype, layout=x.layout, device=x.device)
-        for C in range(self.num_clusters): # slower than non-looped, but lower memory usage 
+        for C in range(self.num_clusters): # slower than non-looped, but lower memory usage
             residual = x_flatten.unsqueeze(0).permute(1, 0, 2, 3) - \
                        self.centroids[C:C+1, :].expand(x_flatten.size(-1), -1, -1).permute(1, 2, 0).unsqueeze(0)
-            residual *= soft_assign[:,C:C+1,:].unsqueeze(2)            
+            residual *= soft_assign[:,C:C+1,:].unsqueeze(2)
             vlad[:,C:C+1,:] = residual.sum(dim=-1)
 
         vlad = F.normalize(vlad, p=2, dim=2)  # intra-normalization
-        vlad = vlad.view(x.size(0), -1)  # flatten        
+        vlad = vlad.view(x.size(0), -1)  # flatten
         vlad = F.normalize(vlad, p=2, dim=1)  # L2 normalize
 
         return vlad
@@ -134,31 +131,30 @@ class NetVLAD_Image2(nn.Module):
         self.conv = nn.Conv2d(dim, num_clusters, kernel_size=(1, 1), bias=True)
         self.centroids = nn.Parameter(torch.rand(num_clusters, dim))
         self._init_params()
-    
-    def _init_params(self):  
+
+    def _init_params(self):
         self.conv.weight = nn.Parameter(
-                (2.0 * self.alpha * self.centroids).unsqueeze(-1).unsqueeze(-1)        
+                (2.0 * self.alpha * self.centroids).unsqueeze(-1).unsqueeze(-1)
         )
-        
+
         self.conv.bias = nn.Parameter(
-                - self.alpha * self.centroids.norm(dim=1)        
+                - self.alpha * self.centroids.norm(dim=1)
         )
-    
+
     def forward(self, x):
         N, C = x.shape[:2]
         if self.normalize_input:
             x = F.normalize(x, p=2, dim=1)  # across descriptor dim
-        
+
         # soft-assignment
         soft_assign = self.conv(x).view(N, self.num_clusters, -1)
         soft_assign = F.softmax(soft_assign, dim=1)
-        x_flatten = x.view(N, C, -1)                                                                                                        
-        
+        x_flatten = x.view(N, C, -1)
         # calculate residuals to each clusters
         residual = x_flatten.expand(self.num_clusters, -1, -1, -1).permute(1, 0, 2, 3) - \
                    self.centroids.expand(x_flatten.size(-1), -1, -1).permute(1, 2, 0).unsqueeze(0)
         residual *= soft_assign.unsqueeze(2)
-        
+
         vlad = residual.sum(dim=-1)
         vlad = F.normalize(vlad, p=2, dim=2)  # intra-normalization
         vlad = vlad.view(x.size(0), -1)  # flatten
@@ -300,7 +296,7 @@ class STN2d(nn.Module):
             self.bn1 = nn.BatchNorm2d(64)
             self.bn2 = nn.BatchNorm2d(128)
             self.bn3 = nn.BatchNorm2d(1024)
-            self.bn4 = nn.BatchNorm1d(512)            
+            self.bn4 = nn.BatchNorm1d(512)
             self.bn5 = nn.BatchNorm1d(256)
 
     def forward(self, x):
@@ -313,7 +309,7 @@ class STN2d(nn.Module):
             x = F.relu(self.conv1(x))
             x = F.relu(self.conv2(x))
             x = F.relu(self.conv3(x))
-        x = self.mp1(x)    
+        x = self.mp1(x)
         x = x.view(-1, 1024)
 
         if self.use_bn:
@@ -323,7 +319,7 @@ class STN2d(nn.Module):
             x = F.relu(self.fc1(x))
             x = F.relu(self.fc2(x))
             x = self.fc3(x)
-        
+
         iden = Variable(torch.from_numpy(np.eye(self.k).astype(np.float32))).view(
                1, self.k*self.k).repeat(batchsize, 1)
         if x.is_cuda:
@@ -401,12 +397,12 @@ class ObsFeatAVD(nn.Module):
         p = int(np.floor(k / 2)) + 2
         self.stn = STN3d(num_points=num_points, k=3, use_bn=False)
         self.feature_trans = STN3d(num_points=num_points, k=64, use_bn=False)
-        self.conv1 = nn.Conv2d(3,64,kernel_size=k,padding=p,dilation=3)        
+        self.conv1 = nn.Conv2d(3,64,kernel_size=k,padding=p,dilation=3)
         self.conv2 = nn.Conv2d(64,128,kernel_size=k,padding=p,dilation=3)
         self.conv3 = nn.Conv2d(128,256,kernel_size=k,padding=p,dilation=3)
         self.conv7 = nn.Conv2d(256,self.n_out,kernel_size=k,padding=p,dilation=3)
         self.amp = nn.AdaptiveMaxPool2d(1)
-   
+
     def forward(self, x):
         batchsize = x.size()[0]
         trans = self.stn(x)
@@ -419,7 +415,7 @@ class ObsFeatAVD(nn.Module):
         x = F.relu(self.conv3(x))
         x = self.conv7(x)
         if self.max_pool:
-            x = self.amp(x) 
+            x = self.amp(x)
         #x = x.view(-1,self.n_out) #<Bxn_out>
         x = x.permute(0,2,3,1)
         return x
@@ -440,10 +436,10 @@ class ImageNetfeat(nn.Module):
                         encoder.layer3,
                         encoder.layer4,
                     )
-        
+
         if pretrained:
             # if using pretrained then only train conv5_1, conv5_2, and conv5_3
-            for l in layers[:-5]: 
+            for l in layers[:-5]:
                 for p in l.parameters():
                     p.requires_grad = False
         '''
@@ -457,31 +453,26 @@ class ImageNetfeat(nn.Module):
 class ImageNetVlad(nn.Module):
     def __init__(self, grid_x=256, grid_y=256, global_feat=True, feature_transform=False, max_pool=True, output_dim=1024):
         super(ImageNetVlad, self).__init__()
-        
+
         self.obs_feat_extractor = ImageNetfeat(global_feat=global_feat,
                                                feature_transform=feature_transform, max_pool=max_pool)
-        
+
         dim = list(self.obs_feat_extractor.parameters())[-1].shape[0]
         self.net_vlad = NetVLAD_Image(num_clusters=32, dim=512, vladv2=True)
         self.fc1 = nn.Linear(16384, 4096)
-        self.bn1 = nn.BatchNorm1d(4096) 
+        self.bn1 = nn.BatchNorm1d(4096)
         self.fc2 = nn.Linear(4096, output_dim)
-        self.bn2 = nn.BatchNorm1d(output_dim) 
+        self.bn2 = nn.BatchNorm1d(output_dim)
         self.relu = nn.ReLU()
 
     def forward(self, x):
-        #rot_x = rotate_images(x)
         x = self.obs_feat_extractor(x)
-        #rot_x = self.obs_feat_extractor(rot_x)
         x = self.net_vlad(x)
-        #rot_x = self.net_vlad(rot_x)
         x = self.relu(self.bn1(self.fc1(x)))
         x = self.relu(self.bn2(self.fc2(x)))
 
-        #rot_x = self.relu(self.bn1(self.fc1(rot_x)))
-        #rot_x = self.relu(self.bn2(self.fc2(rot_x)))
 
-        return x#, rot_x
+        return x
 
 
 if __name__ == '__main__':

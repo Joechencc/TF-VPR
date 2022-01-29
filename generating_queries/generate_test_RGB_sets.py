@@ -2,7 +2,7 @@ import os
 import sys
 import pickle
 import random
-import set_path
+#import set_path
 
 import numpy as np
 import pandas as pd
@@ -50,7 +50,7 @@ def construct_query_dict(df_centroids, df_database, folder_num, traj_len,  filen
     if not evaluate_all:
         test_tree = KDTree(df_centroids[['x','y']])
         test_trees.append(test_tree)
-    
+
     ###############################
     #for folder in range(folder_num):
     dataset = {}
@@ -85,15 +85,13 @@ def construct_query_dict(df_centroids, df_database, folder_num, traj_len,  filen
                 queries_sets[0][key][0] = index[0].tolist()
     else:
         pass
-    
+
     output_to_file(queries_sets, filename_test)
     output_to_file(database_sets, filename_train)
 
 def generate(scene_index, evaluate_all = False, inside=True):
-    base_path = "/mnt/NAS/home/yiming/habitat_4/train"
+    base_path = "data/habitat_4/train/Goffs"
     #runs_folder = cfg.scene_names[scene_index]
-    runs_folder = "Goffs"
-    pre_dir = os.path.join(base_path, runs_folder)
 
     nn_ind = 0.2
     r_mid = 0.2
@@ -101,7 +99,7 @@ def generate(scene_index, evaluate_all = False, inside=True):
 
     filename = "gt_pose.mat"
 
-    folders = list(sorted(os.listdir(pre_dir)))
+    folders = list(sorted(os.listdir(base_path)))
     if evaluate_all == False:
         index_list = [0,1,2,3,4,5,6]
     else:
@@ -114,12 +112,12 @@ def generate(scene_index, evaluate_all = False, inside=True):
     all_files = []
     for fold in fold_list:
         files_ = []
-        files = list(sorted(os.listdir(os.path.join(pre_dir, fold))))
+        files = list(sorted(os.listdir(os.path.join(base_path, fold))))
         files.remove('gt_pose.mat')
         # print("len(files):"+str(len(files)))
         for ind in range(len(files)):
             file_ = "panoimg_"+str(ind)+".png"
-            files_.append(os.path.join(pre_dir, fold, file_))
+            files_.append(os.path.join(base_path, fold, file_))
         all_files.extend(files_)
     # all_files.remove('trajectory.mp4')
     # all_files = [i for i in all_files if not i.endswith(".npy")]
@@ -145,10 +143,10 @@ def generate(scene_index, evaluate_all = False, inside=True):
         df_locations_ts_x = []
         df_locations_ts_y = []
 
-        # print("os.path.join(pre_dir,filename):"+str(os.path.join(pre_dir,filename)))
+        # print("os.path.join(base_path,filename):"+str(os.path.join(base_path,filename)))
         df_locations = torch.zeros((traj_len, 3), dtype = torch.float)
         for count, fold in enumerate(fold_list):
-            data = sio.loadmat(os.path.join(pre_dir,fold,filename))
+            data = sio.loadmat(os.path.join(base_path,fold,filename))
             df_location = data['pose']
             df_locations[int(count*file_size):int((count+1)*file_size)] = torch.tensor(df_location, dtype = torch.float)
 
