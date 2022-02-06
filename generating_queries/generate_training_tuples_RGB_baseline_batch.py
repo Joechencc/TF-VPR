@@ -9,11 +9,11 @@ import random
 import numpy as np
 import pandas as pd
 import json
-
+import glob
 
 
 def construct_dict(folder_num, df_files, df_files_all, df_indices, filename,
-                   pre_dir, k_nearest, k_furthest, traj_len,
+                   k_nearest, k_furthest, traj_len,
                    definite_positives=None):
     """
     Utility function to construct a dictionary
@@ -64,10 +64,8 @@ def construct_dict(folder_num, df_files, df_files_all, df_indices, filename,
         pickle.dump(queries, handle, protocol=pickle.HIGHEST_PROTOCOL)
     print("Done ", filename)
 
-def generate(scene_index, data_index, definite_positives=None, inside=True):
-    base_path = "data/habitat_4/train/Goffs/"
-    pre_dir = base_path
-
+def generate(base_path, scene_index, data_index, definite_positives=None,
+             inside=True):
     # Initialize pandas DataFrame
     k_nearest = 10
     k_furthest = 50
@@ -82,14 +80,11 @@ def generate(scene_index, data_index, definite_positives=None, inside=True):
     df_indices = []
 
     # gives you the list of sub folders to which has different images
-    print(os.getcwd())
     fold_list = list(sorted(os.listdir(base_path)))
     all_files = []
     for fold in fold_list:
-        # Why length of whole files including the mat file
         files_ = []
-        # count .png files
-        num_files = len(list(os.listdir(os.path.join(base_path, fold)))) - 1
+        num_files = len(glob.glob(os.path.join(base_path, fold)+ '/*')) - 1
         for ind in range(num_files):
             file_ = "panoimg_"+str(ind)+".png"
             files_.append(os.path.join(base_path, fold, file_))
@@ -124,40 +119,41 @@ def generate(scene_index, data_index, definite_positives=None, inside=True):
 
         construct_dict(len(fold_list), df_files_train, df_files,
                        df_indices_train, queries_file_name_list[0] + \
-                       str(data_index) + ".pickle", pre_dir, k_nearest,
+                       str(data_index) + ".pickle", k_nearest,
                        k_furthest, int(traj_len/len(fold_list)))
 
         construct_dict(len(fold_list), df_files_test, df_files,
                        df_indices_test, queries_file_name_list[1] + \
-                       str(data_index) + ".pickle", pre_dir, k_nearest,
+                       str(data_index) + ".pickle", k_nearest,
                        k_furthest, int(traj_len/len(fold_list)))
 
         construct_dict(len(fold_list), df_files, df_files, df_indices,
                        queries_file_name_list[2] + str(data_index) +  \
-                       ".pickle", pre_dir, k_nearest, k_furthest,
+                       ".pickle", k_nearest, k_furthest,
                        int(traj_len/len(fold_list)))
 
     else:
 
-        construct_dict(len(fold_list), df_files_train,df_files,
+        construct_dict(len(fold_list), df_files_train, df_files,
                        df_indices_train, "generating_queries/" + \
                        queries_file_name_list[0] + str(data_index) + \
-                       ".pickle", pre_dir, k_nearest, k_furthest,
+                       ".pickle", k_nearest, k_furthest,
                        int(traj_len/len(fold_list)),
                        definite_positives=definite_positives)
 
-        construct_dict(len(fold_list), df_files_test,df_files, df_indices_test,
+        construct_dict(len(fold_list), df_files_test, df_files, df_indices_test,
                        "generating_queries/" + queries_file_name_list[1] + \
-                        str(data_index) + ".pickle", pre_dir, k_nearest, k_furthest,
+                        str(data_index) + ".pickle", k_nearest, k_furthest,
                         int(traj_len/len(fold_list)),
                         definite_positives=definite_positives)
 
-        construct_dict(len(fold_list), df_files,df_files, df_indices,
+        construct_dict(len(fold_list), df_files, df_files, df_indices,
                        "generating_queries/" + queries_file_name_list[2] + \
-                       str(data_index) + ".pickle", pre_dir, k_nearest, k_furthest,
+                       str(data_index) + ".pickle", k_nearest, k_furthest,
                        int(traj_len/len(fold_list)),
                        definite_positives=definite_positives)
 
 if __name__ == "__main__":
+    base_path = "data/habitat_4/train/Goffs/"
     for i in range(1):
-        generate(0,i)
+        generate(base_path, 0, i)

@@ -7,13 +7,20 @@ SIZED_GRID_Y = 64
 FEATURE_OUTPUT_DIM = 512
 RESULTS_FOLDER = "results/"
 OUTPUT_FILE = "results/results.txt"
-file_name = "Springhill"
+file_name = "Goffs"
+SCENE_INDEX = 1
 
 LOG_DIR = 'log/'
 MODEL_FILENAME = "model.ckpt"
 
-DATASET_FOLDER = '/mnt/NAS/home/yiming/habitat/Springhill'
-
+BASE_PATH = './data/habitat_4/train/Goffs/'
+DATASET_FOLDER = './data'
+TRAIN_FILE = 'generating_queries/train_pickle/training_queries_baseline_0.pickle'
+TEST_FILE = 'generating_queries/train_pickle/test_queries_baseline_0.pickle'
+DB_FILE = 'generating_queries/train_pickle/db_queries_baseline_0.pickle'
+EVAL_DATABASE_FILE = 'generating_queries/evaluation_database.pickle'
+EVAL_QUERY_FILE = 'generating_queries/evaluation_query.pickle'
+RESUME = False
 # TRAIN
 BATCH_NUM_QUERIES = 2
 TRAIN_POSITIVES_PER_QUERY = 2
@@ -36,9 +43,6 @@ RESUME = False
 
 #scene_names = ['Micanopy','Nimmons','Reyno','Spotswood','Springhill','Stilwell']
 
-TRAIN_FILE = 'generating_queries/train_pickle/training_queries_baseline_0.pickle'
-TEST_FILE = 'generating_queries/train_pickle/test_queries_baseline_0.pickle'
-DB_FILE = 'generating_queries/train_pickle/db_queries_baseline_0.pickle'
 
 # LOSS
 LOSS_FUNCTION = 'triplet'
@@ -52,8 +56,6 @@ EVAL_POSITIVES_PER_QUERY = 4
 EVAL_NEGATIVES_PER_QUERY = 12
 INIT_TRUST = 3
 
-EVAL_DATABASE_FILE = 'generating_queries/evaluation_database.pickle'
-EVAL_QUERY_FILE = 'generating_queries/evaluation_query.pickle'
 
 
 def cfg_str():

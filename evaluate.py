@@ -15,7 +15,7 @@ from sklearn.neighbors import KDTree
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 
-from loading_pointclouds import *
+from load_image_data import *
 import models.PointNetVlad as PNV
 from tensorboardX import SummaryWriter
 import loss.pointnetvlad_loss
@@ -28,8 +28,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def evaluate():
-    model = PNV.PointNetVlad(global_feat=True, feature_transform=True, max_pool=False,
-                                      output_dim=cfg.FEATURE_OUTPUT_DIM, num_points=cfg.NUM_POINTS)
+    model = PNV.PointNetVlad(global_feat=True, feature_transform=True,
+                             max_pool=False, output_dim=cfg.FEATURE_OUTPUT_DIM,
+                             num_points=cfg.NUM_POINTS)
     model = model.to(device)
 
     resume_filename = cfg.LOG_DIR + "checkpoint.pth.tar"
@@ -58,19 +59,6 @@ def evaluate_model(model,optimizer,epoch,scene_index,save=False,full_pickle=Fals
     else:
         DATABASE_SETS = get_sets_dict(cfg.EVAL_DATABASE_FILE)
         QUERY_SETS = get_sets_dict(cfg.EVAL_QUERY_FILE)
-    '''
-    QUERY_SETS = []
-    for i in range(4):
-        QUERY = {}
-        for j in range(len(QUERY_SETS_temp)//4):
-            #QUERY[len(QUERY.keys())] = {"query":QUERY_SETS_temp[i][j]['query'],
-            #                                "x":float(QUERY_SETS_temp[i][j]['x']),
-            #                                "y":float(QUERY_SETS_temp[i][j]['y']),
-            #                                }
-            QUERY[len(QUERY.keys())] = QUERY_SETS_temp[i][j]
-        QUERY_SETS.append(QUERY)
-    '''
-    cfg.RESULTS_FOLDER = os.path.join("results/", "Goffs")
 
     if not os.path.exists(cfg.RESULTS_FOLDER):
         os.mkdir(cfg.RESULTS_FOLDER)
@@ -84,9 +72,9 @@ def evaluate_model(model,optimizer,epoch,scene_index,save=False,full_pickle=Fals
     for j in range(len(QUERY_SETS)):
         QUERY_VECTORS.append(get_latent_vectors(model, QUERY_SETS[j]))
 
-    recall_1 = 0#np.zeros(int(round(len_tr/1000)))
-    recall_5 = 0#np.zeros(int(round(len_tr/200)))
-    recall_10 = 0#np.zeros(int(round(len_tr/100)))
+    recall_1 = 0
+    recall_5 = 0
+    recall_10 = 0
 
     # Save Evaluate vectors
     if full_pickle:
@@ -144,7 +132,6 @@ def get_latent_vectors(model, dict_to_process):
         out = out.detach().cpu().numpy()
         out = np.squeeze(out)
 
-        #out = np.vstack((o1, o2, o3, o4))
         q_output.append(out)
 
     q_output = np.array(q_output)
@@ -184,16 +171,13 @@ def get_recall(m, n, DATABASE_VECTORS, QUERY_VECTORS, QUERY_SETS):
     queries_output = QUERY_VECTORS[n]      #10*256
 
     database_nbrs = KDTree(database_output)
-    num_neighbors = 25
 
     recalls = []
     similarity_scores = []
     N_percent_recalls = []
 
-    #percent_array = [1000, 200, 100]
     n_values = [1,5,10,20]
     for value in n_values:
-
         num_evaluated = 0
         recall_N_per = 0
         for i in range(len(queries_output)):
@@ -203,9 +187,7 @@ def get_recall(m, n, DATABASE_VECTORS, QUERY_VECTORS, QUERY_SETS):
             num_evaluated += 1
             distances, indices = database_nbrs.query(
                 np.array([queries_output[i]]),k=value+11)
-            # Refactor Compare_a and compare_b
-            # compare_b is the ground truth
-            compare_a = indices[0][0:50].tolist()
+            compare_a = set(indices[0][0:50].tolist()[:value])
             k_nearest = 10
             pos_index_range = list(range(-k_nearest//2, (k_nearest//2)+1))
             for pos_index in pos_index_range:
@@ -213,26 +195,15 @@ def get_recall(m, n, DATABASE_VECTORS, QUERY_VECTORS, QUERY_SETS):
                     compare_a.remove(pos_index+i)
                 except:
                     pass
-            #print("compare_a:"+str(compare_a))
-            compare_a = compare_a[:(value)]
-            #print("compare_a_after:"+str(compare_a))
-            #assert(0)
-            compare_b = true_neighbors
-            #compare_a.remove(i)
+            compare_b = set(true_neighbors)
             try:
                 compare_b.remove(i)
             except:
                 pass
-            compare_a = set(compare_a)
-            #print("value:"+str(value))
-            #print("compare_a:"+str(compare_a))
-            compare_b = set(compare_b)
-            #if len(list(set(indices[0][0:threshold]).intersection(set(true_neighbors)))) > 0:
             if len(list(compare_a.intersection(compare_b))) > 0:
                 recall_N_per += 1
 
         if float(num_evaluated)!=0:
-            #N_percent_recall = (N_percent_retrieved/float(num_evaluated))*100
             recall_N = (recall_N_per/float(num_evaluated))*100
         else:
             recall_N = 0
@@ -242,45 +213,6 @@ def get_recall(m, n, DATABASE_VECTORS, QUERY_VECTORS, QUERY_SETS):
     return recall_1, recall_5, recall_10
 
 if __name__ == "__main__":
-    # params
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--positives_per_query', type=int, default=4,
-                        help='Number of potential positives in each training tuple [default: 2]')
-    parser.add_argument('--negatives_per_query', type=int, default=12,
-                        help='Number of definite negatives in each training tuple [default: 20]')
-    parser.add_argument('--eval_batch_size', type=int, default=12,
-                        help='Batch Size during training [default: 1]')
-    parser.add_argument('--dimension', type=int, default=256)
-    parser.add_argument('--decay_step', type=int, default=200000,
-                        help='Decay step for lr decay [default: 200000]')
-    parser.add_argument('--decay_rate', type=float, default=0.7,
-                        help='Decay rate for lr decay [default: 0.8]')
-    parser.add_argument('--results_dir', default='results/',
-                        help='results dir [default: results]')
-    parser.add_argument('--dataset_folder', default='../../dataset/',
-                        help='PointNetVlad Dataset Folder')
-    FLAGS = parser.parse_args()
-
-    #BATCH_SIZE = FLAGS.batch_size
-    #cfg.EVAL_BATCH_SIZE = FLAGS.eval_batch_size
-    cfg.NUM_POINTS = 4096
-    cfg.FEATURE_OUTPUT_DIM = 256
-    cfg.EVAL_POSITIVES_PER_QUERY = FLAGS.positives_per_query
-    cfg.EVAL_NEGATIVES_PER_QUERY = FLAGS.negatives_per_query
-    cfg.DECAY_STEP = FLAGS.decay_step
-    cfg.DECAY_RATE = FLAGS.decay_rate
-
-    cfg.RESULTS_FOLDER = FLAGS.results_dir
-
-    cfg.EVAL_DATABASE_FILE = 'generating_queries/evaluation_database.pickle'
-    cfg.EVAL_QUERY_FILE = 'generating_queries/evaluation_query.pickle'
-
-    cfg.LOG_DIR = 'log/'
-    cfg.OUTPUT_FILE = cfg.RESULTS_FOLDER + 'results.txt'
-    cfg.MODEL_FILENAME = "model.ckpt"
-
-    # cfg.DATASET_FOLDER = FLAGS.dataset_folder
-    cfg.RESULTS_FOLDER = os.path.join("results/", cfg.scene_names[scene_index])
     if not os.path.isdir(cfg.RESULTS_FOLDER):
         os.mkdir(cfg.RESULTS_FOLDER)
 

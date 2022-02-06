@@ -29,12 +29,12 @@ python generate_test_sets.py
 
 ### Train
 ```
-python train_pointnetvlad.py --dataset_folder $DATASET_FOLDER
+python train.py
 ```
 
 ### Evaluate
 ```
-python evaluate.py --dataset_folder $DATASET_FOLDER
+python evaluate.py
 ```
 
-Take a look at train_pointnetvlad.py and evaluate.py for more parameters
+To modify various parameters related to the training or the evaluation of the model, please checkout ``config.py``.
