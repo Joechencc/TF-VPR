@@ -18,34 +18,28 @@ base_path = cfg.DATASET_FOLDER
 runs_folder = "dm_data"
 filename = "gt_pose.mat"
 pointcloud_fols = "/pointcloud_20m_10overlap/"
+test_num = 4
 
+evaluate_all = True
 print("cfg.DATASET_FOLDER:"+str(cfg.DATASET_FOLDER))
 
 cc_dir = "/home/cc/"
 all_folders = sorted(os.listdir(os.path.join(cc_dir,runs_folder)))
-
+file_size_ = 2048
 folders = []
 
 # All runs are used for training (both full and partial)
-index_list = [11,14,15,17]
+if evaluate_all:
+    index_list = list(range(18))
+else:
+    index_list = [5,6,7,9]
 print("Number of runs: "+str(len(index_list)))
 for index in index_list:
-    print("all_folders[index]:"+str(all_folders[index]))
     folders.append(all_folders[index])
 print(folders)
 
 
 #####For training and test data split#####
-
-def check_in_test_set(northing, easting, points, x_width, y_width):
-    in_test_set = False
-    for point in points:
-        if(point[0]-x_width < northing and northing < point[0]+x_width and point[1]-y_width < easting and easting < point[1]+y_width):
-            in_test_set = True
-            break
-    return in_test_set
-##########################################
-
 def output_to_file(output, filename):
     with open(filename, 'wb') as handle:
         pickle.dump(output, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -63,14 +57,14 @@ def construct_query_dict(df_centroids, df_database, folder_num,  filename_train,
     for folder in range(folder_num):
         queries = {}
         for i in range(len(df_centroids)//folder_num):
-            temp_indx = folder*len(df_centroids)//folder_num + i
+            temp_indx = folder*(len(df_centroids)//folder_num) + i
             query = df_centroids.iloc[temp_indx]["file"]
             #print("folder:"+str(folder))
             #print("query:"+str(query))
             queries[len(queries.keys())] = {"query":query,
                 "x":float(df_centroids.iloc[temp_indx]['x']),"y":float(df_centroids.iloc[temp_indx]['y'])}
         queries_sets.append(queries)
-        test_tree = KDTree(df_centroids[['x','y']])
+        test_tree = KDTree(df_centroids[folder*test_num:(folder+1)*test_num][['x','y']])
         test_trees.append(test_tree)
 
     for folder in range(folder_num):
@@ -80,8 +74,9 @@ def construct_query_dict(df_centroids, df_database, folder_num,  filename_train,
             data = df_database.iloc[temp_indx]["file"]
             dataset[len(dataset.keys())] = {"query":data,
                      "x":float(df_database.iloc[temp_indx]['x']),"y":float(df_database.iloc[temp_indx]['y'])}
+        
         database_sets.append(dataset)
-        database_tree = KDTree(df_database[['x','y']])
+        database_tree = KDTree(df_database[folder*file_size_:(folder+1)*file_size_][['x','y']])
         database_trees.append(database_tree)
 
     if test:
@@ -94,7 +89,6 @@ def construct_query_dict(df_centroids, df_database, folder_num,  filename_train,
                     coor = np.array(
                         [[queries_sets[j][key]["x"],queries_sets[j][key]["y"]]])
                     index = tree.query_radius(coor, r=25)
-                    #print("index:"+str(index))
                     # indices of the positive matches in database i of each query (key) in test set j
                     queries_sets[j][key][i] = index[0].tolist()
     
@@ -121,11 +115,11 @@ for folder in folders:
     df_locations = torch.tensor(df_locations, dtype = torch.float).cpu()
 
     #2038 Training 10 testing
-    test_index = random.choices(range(len(df_locations)), k=10)
+    test_index = list(sorted(random.sample(range(len(df_locations)), k=test_num)))
     train_index = list(range(df_locations.shape[0]))
     #for i in test_index:
     #    train_index.pop(i)
-    
+        
     df_locations_tr_x.extend(list(df_locations[train_index,0]))
     df_locations_tr_y.extend(list(df_locations[train_index,1]))
     df_locations_ts_x.extend(list(df_locations[test_index,0]))
@@ -140,8 +134,6 @@ for folder in folders:
             df_files_test.append(os.path.join(cc_dir,runs_folder,folder,file_))
         df_files_train.append(os.path.join(cc_dir,runs_folder,folder,file_))
 
-print("df_locations_tr_x:"+str(len(df_locations_tr_x)))
-print("df_files_test:"+str(len(df_files_test)))
 
 df_train = pd.DataFrame(list(zip(df_files_train, df_locations_tr_x, df_locations_tr_y)),
                                                columns =['file','x', 'y'])
@@ -153,7 +145,8 @@ print("Number of non-disjoint test submaps: "+str(len(df_test['file'])))
 
 print("df_train:"+str(len(df_train)))
 
-
-
 #construct_query_dict(df_train,len(folders),"evaluation_database.pickle",False)
-construct_query_dict(df_test, df_train, len(folders),"evaluation_database.pickle", "evaluation_query.pickle", True)
+if not evaluate_all:
+    construct_query_dict(df_test, df_train, len(folders),"evaluation_database.pickle", "evaluation_query.pickle", True)
+else:
+    construct_query_dict(df_test, df_train, len(folders),"evaluation_database_full.pickle", "evaluation_query_full.pickle", True)
